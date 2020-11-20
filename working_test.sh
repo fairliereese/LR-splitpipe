@@ -11,4 +11,6 @@ fastq=/dfs6/pub/freese/mortazavi_lab/data/200908_splitseq/fl.fastq
 python pacbio-splitpipe/demultiplex.py \
 	-f $fastq \
 	-o test/test \
-	-t 16
+	-t 16 \
+	-i_bcs test/illumina_barcodes.txt \
+	-rc 500

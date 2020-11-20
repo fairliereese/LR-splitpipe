@@ -19,7 +19,13 @@ def get_args():
 		help='Output file path/prefix')
 	parser.add_argument('-t', dest='threads', 
 		help='Number of threads to run on (multithreading is recommended)')
-	# parser.add_argument('-v', dest='verbose')
+	parser.add_argument('-i_bcs', dest='i_bcs', default=None,
+		help='Barcodes from Illumina to filter PacBio barcodes on. '+\
+			 'Default: None')
+	parser.add_argument('-rc', dest='rc', default=500,
+		help='Number of reads/bc to require for filtering')
+	# parser.add_argument('-v', dest='verbose', default=False,
+	# 	help='Display ')
 
 	args = parser.parse_args()
 	return args
@@ -616,6 +622,9 @@ def plot_umis_v_barcodes(df, oprefix, kind):
 		kind = 'pre_correction'
 	elif kind == 'Post-correction':
 		kind = 'post_correction'
+	elif kind == 'Illumina':
+		kinda = 'illumina'
+
 	fname = '{}_{}_umis_v_barcodes.png'.format(oprefix, kind)
 	plt.savefig(fname)
 	plt.clf()
@@ -685,7 +694,7 @@ def trim_bcs_x(x):
 	return trim_seq  
 
 # trim off the barcodes from the start of bc1 until the end of the read
-def trim_bcs(df, t=1):
+def trim_bcs(df, t=1, verbose=False):
 	
 	# add placeholders
 	df.trim_start = np.nan
@@ -713,7 +722,15 @@ def trim_bcs(df, t=1):
 		df['trim_seq'] = df.apply(trim_bcs_x, axis=1)
 	else:
 		pandarallel.initialize(nb_workers=t)
-		df['trim_seq'] =  df.parallel_apply(trim_bcs_x, axis=1)		
+		df['trim_seq'] =  df.parallel_apply(trim_bcs_x, axis=1)	
+
+	# remove sequences that are empty now because of weird linker things
+	df['trim_seq_len'] = df.apply(lambda x: len(x.trim_seq), axis=1)
+	df = df.loc[df.trim_seq_len != 0]
+
+	if verbose:
+		n = len(df.index)
+		print('Number of reads after removing truncated sequences: {}'.format(n))
 		
 	return df
 
@@ -737,12 +754,77 @@ def flip_reads(df, t=1):
 	
 	return df
 
+# plot read lengths after removing the barcode construct
+def plot_read_length(df, oprefix):
+	ax = sns.displot(data=df, x='trim_seq_len', color='#CF91A3')
+	ax.set(xlabel='Read length', ylabel='Number of reads')
+
+	fname = '{}_read_length_dist.png'.format(oprefix)
+	plt.savefig(fname)
+	plt.clf()
+
+# remove bcs that aren't in the corresponding Illumina set of barcodes
+def filter_on_illumina(df, i_bcs):
+
+	# read in illumina barcodes
+    idf = pd.read_csv(i_bcs, header=None)
+    idf.columns = ['bc']
+    illumina_bcs = idf.bc.tolist()
+
+    # subset long-read barcodes on those that are present in illumina data
+    df = df[['read_name', 'seq', 'bc1', 'bc2', 'bc3', 'umi']]
+    df['bc'] = df.bc3+df.bc2+df.bc1
+
+    df = df.loc[df.bc.isin(illumina_bcs)]
+
+    return df
+
+# remove all combinations of barcodes that don't have enough reads
+def filter_on_read_count(df, read_thresh):
+    
+    df['bc'] = df.bc3+df.bc2+df.bc1
+        
+    # if we have a number of reads threshold, filter on that
+    temp = df.copy(deep=True)
+    temp = temp.value_counts(['bc']).reset_index(name='bc_counts')
+    temp = temp.loc[temp.bc_counts>read_thresh]
+    df = df.loc[df.bc.isin(temp.bc.tolist())]
+
+    return df
+
+# format/write fastq
+def write_fastq(df, oprefix):
+
+	# create the read name header with the bc and umi information
+	df.fillna(value='_', inplace=True)
+	df['header'] = df.read_name+':'+df.bc+'_'+df.umi
+	df = df[['header', 'seq']]
+
+	# write the fastq
+	fname = oprefix+'.fastq'
+	ofile = open(fname, 'w')
+	for ind, entry in df.iterrows():
+		try:
+			ofile.write(entry.header+'\n')
+		except:
+			print(entry.header)
+		ofile.write(entry.seq+'\n')
+		ofile.write('+\n')
+		ofile.write(''.join(['5' for i in range(len(entry.seq))])+'\n')
+
+	ofile.close()
+
 def main():
 
 	args = get_args()
 	fastq = args.fastq
 	oprefix = args.oprefix
 	t = int(args.threads)
+	i_bcs = args.i_bcs
+	rc = int(args.rc)
+	# verbose = args.verbose
+
+	sns.set_context("paper", font_scale=1.8)
 
 	# df = fastq_to_df(fastq)	
 	# df = find_linkers(df, t=t)
@@ -783,27 +865,50 @@ def main():
 	# plot_umis_v_barcodes(df, oprefix, 'Pre-correction')
 	# plot_umis_per_cell(df, oprefix, 'Pre-correction')
 
-	# # correct barcodes that we can 
-	# edit_dist = 3
-	# df = correct_barcodes(df, counts, count_thresh, edit_dist, t=t)
-	fname = oprefix+'_seq_corrected_bcs.tsv'
-	# df.to_csv(fname, sep='\t', index=False)
+	# # # correct barcodes that we can 
+	# # edit_dist = 3
+	# # df = correct_barcodes(df, counts, count_thresh, edit_dist, t=t)
+	# fname = oprefix+'_seq_corrected_bcs.tsv'
+	# # df.to_csv(fname, sep='\t', index=False)
 
-	# # some more qc plots
-	# plot_umis_v_barcodes(df, oprefix, 'Post-correction')
-	# plot_umis_per_cell(df, oprefix, 'Post-correction')
+	# # # some more qc plots
+	# # plot_umis_v_barcodes(df, oprefix, 'Post-correction')
+	# # plot_umis_per_cell(df, oprefix, 'Post-correction')
 
-	# # todo: remove this
+	# # # todo: remove this
 	# df = pd.read_csv(fname, sep='\t')
 
-	# # trim and orient reads based on where the linkers were found - need to make
-	# # sure df at this point will work
+	# # # trim and orient reads based on where the linkers were found - need to make
+	# # # sure df at this point will work
 	# df = trim_bcs(df, t=t)
 	# df = flip_reads(df, t=t)
 	# fname = oprefix+'_trimmed_flipped.tsv'
+	# # df.to_csv(fname, sep='\t', index=False)
+
+	# # # what do the read lengths look like after this?
+	# # plot_read_length(df, oprefix)
+
+	# # # todo: remove this
+	# df = pd.read_csv(fname, sep='\t')
+
+	# # finally, filter based on number of reads per cell bc and 
+	# # corresponding Illumina bcs (if available)
+	# if i_bcs:
+	# 	df = filter_on_illumina(df, i_bcs)
+	# 	plot_umis_v_barcodes(df, oprefix, 'Illumina')
+	# df = filter_on_read_count(df, rc)
+
+	fname = oprefix+'_filtered.tsv'
 	# df.to_csv(fname, sep='\t', index=False)
 
-	# finally, filter
+	# todo - remove
+	df = pd.read_csv(fname, sep='\t')
+
+	# and write to a fastq file
+	df = write_fastq(df, oprefix)
+
+
+
 
 
 if __name__ == '__main__':

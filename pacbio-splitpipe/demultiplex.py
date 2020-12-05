@@ -846,20 +846,17 @@ def main():
 
 	# # get alignment information for each linker 
 	# df = get_linker_alignments(df, t=t, l1_m=3, l2_m=3, verbose=True)
-	# fname = oprefix+'_seq_linker_alignments.tsv'
+	fname = oprefix+'_seq_linker_alignments.tsv'
 	# df.to_csv(fname, sep='\t', index=False)
 
 	# TODO remove this
-	# fname = 'test/beep.tsv'
-	# df = pd.read_csv(fname, sep='\t')
-	# df.l1_start = df.l1_start.astype('int')
-	# df.l1_stop = df.l1_stop.astype('int')
-	# df.l2_start = df.l2_start.astype('int')
-	# df.l2_stop = df.l2_stop.astype('int')
+	df = pd.read_csv(fname, sep='\t')
 
 	# # get barcode information from each read
-	# df = get_bcs_umis(df, t=t)
-	# df, counts, count_thresh = get_perfect_bc_counts(df)
+	df = get_bcs_umis(df, t=t)
+	df, counts, count_thresh = get_perfect_bc_counts(df)
+	fname = 'oprefix'+'_seq_bcs.tsv'
+	df.to_csv(fname, sep='\t', index=False)
 
 	# # some more qc plots
 	# plot_umis_v_barcodes(df, oprefix, 'Pre-correction')
@@ -869,6 +866,8 @@ def main():
 	# # edit_dist = 3
 	# # df = correct_barcodes(df, counts, count_thresh, edit_dist, t=t)
 	# fname = oprefix+'_seq_corrected_bcs.tsv'
+
+	# ***TODO probably want to drop nans here.... not sure what's going on***
 	# # df.to_csv(fname, sep='\t', index=False)
 
 	# # # some more qc plots
@@ -898,17 +897,14 @@ def main():
 	# 	plot_umis_v_barcodes(df, oprefix, 'Illumina')
 	# df = filter_on_read_count(df, rc)
 
-	fname = oprefix+'_filtered.tsv'
+	# fname = oprefix+'_filtered.tsv'
 	# df.to_csv(fname, sep='\t', index=False)
 
 	# todo - remove
-	df = pd.read_csv(fname, sep='\t')
+	# df = pd.read_csv(fname, sep='\t')
 
 	# and write to a fastq file
-	df = write_fastq(df, oprefix)
-
-
-
+	# df = write_fastq(df, oprefix)
 
 
 if __name__ == '__main__':

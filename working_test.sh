@@ -12,5 +12,5 @@ python pacbio-splitpipe/demultiplex.py \
 	-f $fastq \
 	-o test/test \
 	-t 16 \
-	-i_bcs test/illumina_barcodes.txt \
+	-i_file test/illumina_barcodes.txt \
 	-rc 500

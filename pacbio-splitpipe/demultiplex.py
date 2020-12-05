@@ -19,7 +19,7 @@ def get_args():
 		help='Output file path/prefix')
 	parser.add_argument('-t', dest='threads', 
 		help='Number of threads to run on (multithreading is recommended)')
-	parser.add_argument('-i_bcs', dest='i_bcs', default=None,
+	parser.add_argument('-i_file', dest='i_file', default=None,
 		help='Barcodes from Illumina to filter PacBio barcodes on. '+\
 			 'Default: None')
 	parser.add_argument('-rc', dest='rc', default=500,
@@ -75,6 +75,20 @@ def load_barcodes_set():
 	bc_8nt_bc2 = bc_8nt_set_dict['bc2']
 	bc_8nt_bc3 = bc_8nt_set_dict['bc3']
 	return list(bc_8nt_bc1), list(bc_8nt_bc2), list(bc_8nt_bc3)
+
+def get_bc1_matches():
+	# from spclass.py - barcodes and their well/primer type identity
+	bc_file = '/Users/fairliereese/mortazavi_lab/bin/pacbio-splitpipe/barcodes/bc_8nt_v2.csv'
+	bc_df = pd.read_csv(bc_file, index_col=0, names=['bc'])
+	bc_df['well'] = [i for i in range(0, 48)]+[i for i in range(0, 48)]
+	bc_df['primer_type'] = ['dt' for i in range(0, 48)]+['randhex' for i in range(0, 48)]
+
+	# pivot on well to get df that matches bcs with one another from the same well
+	bc_df = bc_df.pivot(index='well', columns='primer_type', values='bc')
+	bc_df = bc_df.rename_axis(None, axis=1).reset_index()
+	bc_df.rename({'dt': 'bc1_dt', 'randhex': 'bc1_randhex'}, axis=1, inplace=True)
+
+	return bc_df
 
 def rev_comp(s):
 	rc_map = {'A': 'T', 'T': 'A', 'G': 'C', 'C': 'G', 
@@ -588,7 +602,8 @@ def correct_barcodes(df, counts, count_thresh, bc_edit_dist, t=1):
 					bc_edit_dist, bc1_dict, bc2_dict, bc3_dict),
 					axis=1, result_type='expand')
 		pandarallel.initialize(nb_workers=t)
-		
+	
+	df.dropna(axis=0, subset=['bc1', 'bc2', 'bc3'], inplace=True)
 	df.drop(['bc1', 'bc2', 'bc3'], axis=1, inplace=True)
 	df = pd.concat([df, temp], axis=1)
 	
@@ -762,35 +777,87 @@ def plot_read_length(df, oprefix):
 	fname = '{}_read_length_dist.png'.format(oprefix)
 	plt.savefig(fname)
 	plt.clf()
-
+	
 # remove bcs that aren't in the corresponding Illumina set of barcodes
-def filter_on_illumina(df, i_bcs):
+def filter_on_illumina(df, i_df):
 
-	# read in illumina barcodes
-    idf = pd.read_csv(i_bcs, header=None)
-    idf.columns = ['bc']
-    illumina_bcs = idf.bc.tolist()
+    # get polydT and randhex barcodes
+    dt_bcs = i_df.bc3+i_df.bc2+i_df.bc1_dt
+    randhex_bcs = i_df.bc3+i_df.bc2+i_df.bc1_randhex
+    i_bcs = dt_bcs.tolist()+randhex_bcs.tolist()
 
     # subset long-read barcodes on those that are present in illumina data
     df = df[['read_name', 'seq', 'bc1', 'bc2', 'bc3', 'umi']]
     df['bc'] = df.bc3+df.bc2+df.bc1
+    
 
-    df = df.loc[df.bc.isin(illumina_bcs)]
+    df = df.loc[df.bc.isin(i_bcs)]
 
     return df
 
 # remove all combinations of barcodes that don't have enough reads
+# if we're also filtering on Illumina bcs, take all cells that pass the 
+# threshold in either dt or randhex
 def filter_on_read_count(df, read_thresh):
     
+    bc_df = get_bc1_matches()
+#     bc_df.rename({'bc1_dt':'bc1_1', 'bc1_randhex':'bc1_2'}, axis=1, inplace=True)
+#     bc_df = bc_df[['bc1_1', 'bc1_2']]
+#     swap_bcs = bc_df.copy(deep=True)
+#     bc_df = pd.concat([bc_df, swap_bcs])
+#     bc_df.rename({'bc1_1':'bc1', 'bc1_2':'bc1_partner'}, axis=1, inplace=True)
+    
     df['bc'] = df.bc3+df.bc2+df.bc1
-        
+
     # if we have a number of reads threshold, filter on that
     temp = df.copy(deep=True)
-    temp = temp.value_counts(['bc']).reset_index(name='bc_counts')
+    temp = temp.value_counts(['bc', 'bc1', 'bc2', 'bc3']).reset_index(name='bc_counts')
     temp = temp.loc[temp.bc_counts>read_thresh]
+#     temp['bc1_partner'] = temp.apply(lambda x: find_partner_bc, args=(bc_df), axis=1)
+    temp['bc1_partner'] = temp.apply(lambda x: bc_df.loc[bc_df.bc1_dt == x.bc1, 'bc1_randhex'].values[0] \
+        if x.bc1 in bc_df.bc1_dt.tolist() else bc_df.loc[bc_df.bc1_randhex == x.bc1, 'bc1_dt'].values[0], \
+        axis=1)
+        
+#     print(bc_df.head())
+#     temp = temp.merge(bc_df, how='left', on='bc1')
+    temp['bc_partner'] = temp.bc3+temp.bc2+temp.bc1_partner
+    valid_bcs = temp.bc.tolist()+temp.bc_partner.tolist()
+    
     df = df.loc[df.bc.isin(temp.bc.tolist())]
 
     return df
+
+# process illumina barcodes to add the randhex bc1s to 
+# the list of valid barcodes as well
+# Returns a df with barcode combinations that are possible
+def process_illumina_bcs(ifile):
+
+	# read in illumina barcodes
+	i_df = pd.read_csv(ifile, header=None)
+	i_df.columns = ['bc']
+	i_df['bc3'] = i_df.bc.str.slice(start=0, stop=8)
+	i_df['bc2'] = i_df.bc.str.slice(start=8, stop=16)
+	i_df['bc1'] = i_df.bc.str.slice(start=16, stop=24)
+	# i_bcs = i_df.bc.tolist()
+
+	bc_df = get_bc1_matches()
+
+	# then merge on dt bc1 with illumina barcodes
+	i_df = i_df.merge(bc_df, how='left', left_on='bc1', right_on='bc1_dt')
+	
+	# # first merge with well
+	# i_df = i_df.merge(bc_df[['bc1', 'well']], how='left', on='bc1')
+
+	# # then remove all non-polydT primers from the bc_df
+	# bc_df = bc_df.loc[bc_df.primer_type == 'randhex']
+
+	# # and then merge on well to get the corresponding bc in each well
+	# i_df.rename({'bc1': 'dt_bc1'}, axis=1, inplace=True)
+	# bc_df.rename({'bc1': 'randhex_bc1'}, axis=1, inplace=True)
+	# i_df = i_df.merge(bc_df[['well', 'randhex_bc1']], how='left', on='well')
+
+	return i_df
+
 
 # format/write fastq
 def write_fastq(df, oprefix):
@@ -820,7 +887,7 @@ def main():
 	fastq = args.fastq
 	oprefix = args.oprefix
 	t = int(args.threads)
-	i_bcs = args.i_bcs
+	i_file = args.i_file
 	rc = int(args.rc)
 	# verbose = args.verbose
 
@@ -846,17 +913,17 @@ def main():
 
 	# # get alignment information for each linker 
 	# df = get_linker_alignments(df, t=t, l1_m=3, l2_m=3, verbose=True)
-	fname = oprefix+'_seq_linker_alignments.tsv'
+	# fname = oprefix+'_seq_linker_alignments.tsv'
 	# df.to_csv(fname, sep='\t', index=False)
 
-	# TODO remove this
-	df = pd.read_csv(fname, sep='\t')
+	# # TODO remove this
+	# df = pd.read_csv(fname, sep='\t')
 
 	# # get barcode information from each read
-	df = get_bcs_umis(df, t=t)
-	df, counts, count_thresh = get_perfect_bc_counts(df)
-	fname = 'oprefix'+'_seq_bcs.tsv'
-	df.to_csv(fname, sep='\t', index=False)
+	# df = get_bcs_umis(df, t=t)
+	# df, counts, count_thresh = get_perfect_bc_counts(df)
+	# fname = 'oprefix'+'_seq_bcs.tsv'
+	# df.to_csv(fname, sep='\t', index=False)
 
 	# # some more qc plots
 	# plot_umis_v_barcodes(df, oprefix, 'Pre-correction')
@@ -865,7 +932,7 @@ def main():
 	# # # correct barcodes that we can 
 	# # edit_dist = 3
 	# # df = correct_barcodes(df, counts, count_thresh, edit_dist, t=t)
-	# fname = oprefix+'_seq_corrected_bcs.tsv'
+	fname = oprefix+'_seq_corrected_bcs.tsv'
 
 	# ***TODO probably want to drop nans here.... not sure what's going on***
 	# # df.to_csv(fname, sep='\t', index=False)
@@ -874,15 +941,15 @@ def main():
 	# # plot_umis_v_barcodes(df, oprefix, 'Post-correction')
 	# # plot_umis_per_cell(df, oprefix, 'Post-correction')
 
-	# # # todo: remove this
-	# df = pd.read_csv(fname, sep='\t')
+	# # todo: remove this
+	df = pd.read_csv(fname, sep='\t')
 
-	# # # trim and orient reads based on where the linkers were found - need to make
-	# # # sure df at this point will work
-	# df = trim_bcs(df, t=t)
-	# df = flip_reads(df, t=t)
-	# fname = oprefix+'_trimmed_flipped.tsv'
-	# # df.to_csv(fname, sep='\t', index=False)
+	# # trim and orient reads based on where the linkers were found - need to make
+	# # sure df at this point will work
+	df = trim_bcs(df, t=t)
+	df = flip_reads(df, t=t)
+	fname = oprefix+'_trimmed_flipped.tsv'
+	df.to_csv(fname, sep='\t', index=False)
 
 	# # # what do the read lengths look like after this?
 	# # plot_read_length(df, oprefix)
@@ -892,7 +959,8 @@ def main():
 
 	# # finally, filter based on number of reads per cell bc and 
 	# # corresponding Illumina bcs (if available)
-	# if i_bcs:
+	# if i_file:
+	# 	i_bcs = process_illumina_bcs(i_file)
 	# 	df = filter_on_illumina(df, i_bcs)
 	# 	plot_umis_v_barcodes(df, oprefix, 'Illumina')
 	# df = filter_on_read_count(df, rc)
@@ -900,7 +968,7 @@ def main():
 	# fname = oprefix+'_filtered.tsv'
 	# df.to_csv(fname, sep='\t', index=False)
 
-	# todo - remove
+	# # todo - remove
 	# df = pd.read_csv(fname, sep='\t')
 
 	# and write to a fastq file

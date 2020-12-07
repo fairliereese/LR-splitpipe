@@ -14,8 +14,9 @@ def get_args():
 	return args
 
 def get_read_info(line):
-''' From a line in a sam file, returns the read name, 
-    barcode, and UMI as formatted by demultiplex.py '''
+	''' From a line in a sam file, returns the read name, 
+	    barcode, and UMI as formatted by demultiplex.py
+	'''
 	read_bc = line[0]
 	read_bc = read_bc.split(':')
 	read_name = read_bc[0]
@@ -32,7 +33,7 @@ def main():
 	samfile = args.samfile
 	oprefix = args.oprefix
 
-	fname = '{}.sam'
+	fname = '{}.sam'.format(oprefix)
 	ofile = open(fname, 'w')
 	ifile = open(samfile, 'r')
 
@@ -43,10 +44,10 @@ def main():
 			line = line.strip().split('\t')
 			read_name, bc, umi = get_read_info(line)
 			line[0] = read_name
-			cell_tag = 'RG:Z:{}'.format(bc)
+			cell_tag = 'CB:Z:{}'.format(bc)
 			umi_tag = 'MI:Z:{}'.format(umi)
 			line.append(cell_tag)
-			line.append(umi)
+			line.append(umi_tag)
 			line = '\t'.join(line)+'\n'
 			ofile.write(line)
 	ofile.close()

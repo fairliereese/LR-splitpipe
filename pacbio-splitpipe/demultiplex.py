@@ -15,6 +15,10 @@ def get_args():
 
 	parser.add_argument('-f', dest='fastq',
 		help='FASTQ file output from Lima with long split-seq reads.')
+	# parser.add_argument('-steps', dest='steps', default='all',
+	# 	help='Comma separated list of steps to perform. Default is all. Options '\
+	# 		'include: score_linkers, align_linkers, correct_bcs, trim, i_filt, '\
+	# 		'rc_filt, write_fastq')
 	parser.add_argument('-o', dest='oprefix',
 		help='Output file path/prefix')
 	parser.add_argument('-t', dest='threads', 
@@ -24,13 +28,25 @@ def get_args():
 			 'Default: None')
 	parser.add_argument('-rc', dest='rc', default=500,
 		help='Number of reads/bc to require for filtering')
-	# parser.add_argument('-steps', dest='steps', default='all',
-	# 	help='Comma separated list of steps to perform. Default is all. Options i')
 	# parser.add_argument('-v', dest='verbose', default=False,
 	# 	help='Display ')
 
 	args = parser.parse_args()
 	return args
+
+# def check_inputs(args):
+# 	steps = args.steps.split(',')
+# 	ctrl = ['score_linkers', 'align_linkers', 'correct_bcs', \
+# 		'trim', 'i_filt', 'rc_filt', 'write_fastq']
+
+# 	# order based on ctrl order
+# 	ord_steps = [step for step in ctrl if step in steps]
+# 	invalid_steps = [step for step in steps if step not in ctrl]
+
+# 	if invalid_steps:
+# 		raise ValueError('Steps: {}'.format(invalid_steps))
+
+	#
 
 def get_linkers():
 	# TODO
@@ -80,7 +96,7 @@ def load_barcodes_set():
 
 def get_bc1_matches():
 	# from spclass.py - barcodes and their well/primer type identity
-	bc_file = '/Users/fairliereese/mortazavi_lab/bin/pacbio-splitpipe/barcodes/bc_8nt_v2.csv'
+	bc_file = '/data/users/freese/mortazavi_lab/bin/pacbio-splitpipe/barcodes/bc_8nt_v2.csv'
 	bc_df = pd.read_csv(bc_file, index_col=0, names=['bc'])
 	bc_df['well'] = [i for i in range(0, 48)]+[i for i in range(0, 48)]
 	bc_df['primer_type'] = ['dt' for i in range(0, 48)]+['randhex' for i in range(0, 48)]
@@ -631,7 +647,7 @@ def plot_umis_v_barcodes(df, oprefix, kind):
 			linewidth=2)
 	ax = plt.gca()
 	ax.set_xscale('log')
-	ax.set_xlabel('# Barcodes (logscale)')
+	ax.set_xlabel('Ranked cells by # UMIs (logscale)')
 	ax.set_ylabel('# UMIs (logscale)')
 	ax.set_title(kind)
 
@@ -641,6 +657,8 @@ def plot_umis_v_barcodes(df, oprefix, kind):
 		kind = 'post_correction'
 	elif kind == 'Illumina':
 		kinda = 'illumina'
+
+	plt.tight_layout()
 
 	fname = '{}_{}_umis_v_barcodes.png'.format(oprefix, kind)
 	plt.savefig(fname)
@@ -688,6 +706,8 @@ def plot_umis_per_cell(df, oprefix, kind):
 	ax.set_title(kind)
 	plt.draw()
 
+	plt.tight_layout()
+	
 	if kind == 'Pre-correction':
 		kind = 'pre_correction'
 	elif kind == 'Post-correction':
@@ -791,7 +811,6 @@ def filter_on_illumina(df, i_df):
     # subset long-read barcodes on those that are present in illumina data
     df = df[['read_name', 'seq', 'bc1', 'bc2', 'bc3', 'umi']]
     df['bc'] = df.bc3+df.bc2+df.bc1
-    
 
     df = df.loc[df.bc.isin(i_bcs)]
 
@@ -814,15 +833,17 @@ def filter_on_read_count(df, read_thresh):
     # if we have a number of reads threshold, filter on that
     temp = df.copy(deep=True)
     temp = temp.value_counts(['bc', 'bc1', 'bc2', 'bc3']).reset_index(name='bc_counts')
-    temp = temp.loc[temp.bc_counts>read_thresh]
-#     temp['bc1_partner'] = temp.apply(lambda x: find_partner_bc, args=(bc_df), axis=1)
+    # temp = temp.loc[temp.bc_counts>read_thresh]
     temp['bc1_partner'] = temp.apply(lambda x: bc_df.loc[bc_df.bc1_dt == x.bc1, 'bc1_randhex'].values[0] \
         if x.bc1 in bc_df.bc1_dt.tolist() else bc_df.loc[bc_df.bc1_randhex == x.bc1, 'bc1_dt'].values[0], \
-        axis=1)
-        
+        axis=1)        
 #     print(bc_df.head())
 #     temp = temp.merge(bc_df, how='left', on='bc1')
     temp['bc_partner'] = temp.bc3+temp.bc2+temp.bc1_partner
+    temp['bc_partner_counts'] = temp.apply(lambda x: temp.loc[temp.bc == x.bc_partner, 'bc_counts'].values[0] \
+        if x.bc_partner in temp.bc.tolist() else 0, axis=1)
+    temp['total_counts'] = temp.bc_counts + temp.bc_partner_counts
+    temp = temp.loc[temp.total_counts>read_thresh]
     valid_bcs = temp.bc.tolist()+temp.bc_partner.tolist()
     
     df = df.loc[df.bc.isin(valid_bcs)]
@@ -847,17 +868,6 @@ def process_illumina_bcs(ifile):
 	# then merge on dt bc1 with illumina barcodes
 	i_df = i_df.merge(bc_df, how='left', left_on='bc1', right_on='bc1_dt')
 	
-	# # first merge with well
-	# i_df = i_df.merge(bc_df[['bc1', 'well']], how='left', on='bc1')
-
-	# # then remove all non-polydT primers from the bc_df
-	# bc_df = bc_df.loc[bc_df.primer_type == 'randhex']
-
-	# # and then merge on well to get the corresponding bc in each well
-	# i_df.rename({'bc1': 'dt_bc1'}, axis=1, inplace=True)
-	# bc_df.rename({'bc1': 'randhex_bc1'}, axis=1, inplace=True)
-	# i_df = i_df.merge(bc_df[['well', 'randhex_bc1']], how='left', on='well')
-
 	return i_df
 
 
@@ -866,7 +876,7 @@ def write_fastq(df, oprefix):
 
 	# create the read name header with the bc and umi information
 	df.fillna(value='_', inplace=True)
-	df['header'] = df.read_name+':'+df.bc+'_'+df.umi
+	df['header'] = '@'+df.read_name+':'+df.bc+'_'+df.umi
 	df = df[['header', 'seq']]
 
 	# write the fastq
@@ -901,25 +911,25 @@ def main():
 	# fname = oprefix+'_seq_linker_alignment_scores.tsv'
 	# df.to_csv(fname, sep='\t', index=False)
 
-	# # todo - remove
-	# df = pd.read_csv('test_seq_linker_alignment_scores.tsv', sep='\t')
+	# # # todo - remove
+	# # df = pd.read_csv('test_seq_linker_alignment_scores.tsv', sep='\t')
 
 	# # some qc plots
 	# plot_linker_scores(df, oprefix)
 	# plot_linker_heatmap(df, oprefix, how='integer')
 	# plot_linker_heatmap(df, oprefix, how='proportion')
 
-	# TODO - look for dist of occurrences of each linker within each read
-	# we can maybe decrease the search space for each read by truncating 
-	# the read
+	# # TODO - look for dist of occurrences of each linker within each read
+	# # we can maybe decrease the search space for each read by truncating 
+	# # the read
 
 	# # get alignment information for each linker 
 	# df = get_linker_alignments(df, t=t, l1_m=3, l2_m=3, verbose=True)
 	# fname = oprefix+'_seq_linker_alignments.tsv'
 	# df.to_csv(fname, sep='\t', index=False)
 
-	# # TODO remove this
-	# df = pd.read_csv(fname, sep='\t')
+	# # # TODO remove this
+	# # df = pd.read_csv(fname, sep='\t')
 
 	# # get barcode information from each read
 	# df = get_bcs_umis(df, t=t)
@@ -931,20 +941,20 @@ def main():
 	# plot_umis_v_barcodes(df, oprefix, 'Pre-correction')
 	# plot_umis_per_cell(df, oprefix, 'Pre-correction')
 
-	# # # correct barcodes that we can 
-	# # edit_dist = 3
-	# # df = correct_barcodes(df, counts, count_thresh, edit_dist, t=t)
+	# # correct barcodes that we can 
+	# edit_dist = 3
+	# df = correct_barcodes(df, counts, count_thresh, edit_dist, t=t)
 	# fname = oprefix+'_seq_corrected_bcs.tsv'
 
-	# ***TODO probably want to drop nans here.... not sure what's going on***
-	# # df.to_csv(fname, sep='\t', index=False)
+	# # ***TODO probably want to drop nans here.... not sure what's going on***
+	# # # df.to_csv(fname, sep='\t', index=False)
 
 	# # # some more qc plots
-	# # plot_umis_v_barcodes(df, oprefix, 'Post-correction')
-	# # plot_umis_per_cell(df, oprefix, 'Post-correction')
+	# plot_umis_v_barcodes(df, oprefix, 'Post-correction')
+	# plot_umis_per_cell(df, oprefix, 'Post-correction')
 
-	# # todo: remove this
-	# df = pd.read_csv(fname, sep='\t')
+	# # # todo: remove this
+	# # df = pd.read_csv(fname, sep='\t')
 
 	# # trim and orient reads based on where the linkers were found - need to make
 	# # sure df at this point will work
@@ -953,10 +963,10 @@ def main():
 	fname = oprefix+'_trimmed_flipped.tsv'
 	# df.to_csv(fname, sep='\t', index=False)
 
-	# # # what do the read lengths look like after this?
-	# # plot_read_length(df, oprefix)
+	# # what do the read lengths look like after this?
+	# plot_read_length(df, oprefix)
 
-	# # todo: remove this
+	# todo: remove this
 	df = pd.read_csv(fname, sep='\t')
 
 	# finally, filter based on number of reads per cell bc and 
@@ -970,12 +980,11 @@ def main():
 	fname = oprefix+'_filtered.tsv'
 	df.to_csv(fname, sep='\t', index=False)
 
-	# todo - remove
-	df = pd.read_csv(fname, sep='\t')
+	# # todo - remove
+	# df = pd.read_csv(fname, sep='\t')
 
 	# and write to a fastq file
 	df = write_fastq(df, oprefix)
-
 
 if __name__ == '__main__':
 	main()

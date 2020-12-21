@@ -905,63 +905,63 @@ def main():
 
 	sns.set_context("paper", font_scale=1.8)
 
-	# df = fastq_to_df(fastq)	
-	# df = find_linkers(df, t=t)
+	df = fastq_to_df(fastq)	
+	df = find_linkers(df, t=t)
 
-	# fname = oprefix+'_seq_linker_alignment_scores.tsv'
-	# df.to_csv(fname, sep='\t', index=False)
+	fname = oprefix+'_seq_linker_alignment_scores.tsv'
+	df.to_csv(fname, sep='\t', index=False)
 
-	# # # todo - remove
-	# # df = pd.read_csv('test_seq_linker_alignment_scores.tsv', sep='\t')
+	# # todo - remove
+	# df = pd.read_csv('test_seq_linker_alignment_scores.tsv', sep='\t')
 
-	# # some qc plots
-	# plot_linker_scores(df, oprefix)
-	# plot_linker_heatmap(df, oprefix, how='integer')
-	# plot_linker_heatmap(df, oprefix, how='proportion')
+	# some qc plots
+	plot_linker_scores(df, oprefix)
+	plot_linker_heatmap(df, oprefix, how='integer')
+	plot_linker_heatmap(df, oprefix, how='proportion')
 
-	# # TODO - look for dist of occurrences of each linker within each read
-	# # we can maybe decrease the search space for each read by truncating 
-	# # the read
+	# TODO - look for dist of occurrences of each linker within each read
+	# we can maybe decrease the search space for each read by truncating 
+	# the read
 
-	# # get alignment information for each linker 
-	# df = get_linker_alignments(df, t=t, l1_m=3, l2_m=3, verbose=True)
-	# fname = oprefix+'_seq_linker_alignments.tsv'
-	# df.to_csv(fname, sep='\t', index=False)
+	# get alignment information for each linker 
+	df = get_linker_alignments(df, t=t, l1_m=3, l2_m=3, verbose=True)
+	fname = oprefix+'_seq_linker_alignments.tsv'
+	df.to_csv(fname, sep='\t', index=False)
 
-	# # # TODO remove this
-	# # df = pd.read_csv(fname, sep='\t')
+	# # TODO remove this
+	# df = pd.read_csv(fname, sep='\t')
 
-	# # get barcode information from each read
-	# df = get_bcs_umis(df, t=t)
-	# df, counts, count_thresh = get_perfect_bc_counts(df)
-	# fname = 'oprefix'+'_seq_bcs.tsv'
-	# df.to_csv(fname, sep='\t', index=False)
+	# get barcode information from each read
+	df = get_bcs_umis(df, t=t)
+	df, counts, count_thresh = get_perfect_bc_counts(df)
+	fname = 'oprefix'+'_seq_bcs.tsv'
+	df.to_csv(fname, sep='\t', index=False)
+
+	# some more qc plots
+	plot_umis_v_barcodes(df, oprefix, 'Pre-correction')
+	plot_umis_per_cell(df, oprefix, 'Pre-correction')
+
+	# correct barcodes that we can 
+	edit_dist = 3
+	df = correct_barcodes(df, counts, count_thresh, edit_dist, t=t)
+	fname = oprefix+'_seq_corrected_bcs.tsv'
+
+	# ***TODO probably want to drop nans here.... not sure what's going on***
+	# # df.to_csv(fname, sep='\t', index=False)
 
 	# # some more qc plots
-	# plot_umis_v_barcodes(df, oprefix, 'Pre-correction')
-	# plot_umis_per_cell(df, oprefix, 'Pre-correction')
+	plot_umis_v_barcodes(df, oprefix, 'Post-correction')
+	plot_umis_per_cell(df, oprefix, 'Post-correction')
 
-	# # correct barcodes that we can 
-	# edit_dist = 3
-	# df = correct_barcodes(df, counts, count_thresh, edit_dist, t=t)
-	# fname = oprefix+'_seq_corrected_bcs.tsv'
+	# # todo: remove this
+	# df = pd.read_csv(fname, sep='\t')
 
-	# # ***TODO probably want to drop nans here.... not sure what's going on***
-	# # # df.to_csv(fname, sep='\t', index=False)
-
-	# # # some more qc plots
-	# plot_umis_v_barcodes(df, oprefix, 'Post-correction')
-	# plot_umis_per_cell(df, oprefix, 'Post-correction')
-
-	# # # todo: remove this
-	# # df = pd.read_csv(fname, sep='\t')
-
-	# # trim and orient reads based on where the linkers were found - need to make
-	# # sure df at this point will work
-	# df = trim_bcs(df, t=t)
-	# df = flip_reads(df, t=t)
+	# trim and orient reads based on where the linkers were found - need to make
+	# sure df at this point will work
+	df = trim_bcs(df, t=t)
+	df = flip_reads(df, t=t)
 	fname = oprefix+'_trimmed_flipped.tsv'
-	# df.to_csv(fname, sep='\t', index=False)
+	df.to_csv(fname, sep='\t', index=Fal÷se)
 
 	# # what do the read lengths look like after this?
 	# plot_read_length(df, oprefix)
@@ -975,7 +975,7 @@ def main():
 		i_bcs = process_illumina_bcs(i_file)
 		df = filter_on_illumina(df, i_bcs)
 		plot_umis_v_barcodes(df, oprefix, 'Illumina')
-	df = filter_on_read_count(df, rc)
+	# df = filter_on_read_count(df, rc)
 
 	fname = oprefix+'_filtered.tsv'
 	df.to_csv(fname, sep='\t', index=False)

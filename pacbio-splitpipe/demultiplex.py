@@ -18,7 +18,7 @@ def get_args():
 	parser.add_argument('-steps', dest='steps', default='all',
 		help='Comma separated list of steps to perform. Default is all. Options '\
 			'include: score_linkers, align_linkers, correct_bcs, trim, i_filt, '\
-			'rc_filt, write_fastq')
+            'write_fastq')
 	parser.add_argument('-o', dest='oprefix',
 		help='Output file path/prefix')
 	parser.add_argument('-t', dest='threads', 
@@ -37,7 +37,7 @@ def get_args():
 def check_steps(steps):
 	steps = steps.split(',')
 	ctrl = ['score_linkers', 'align_linkers', 'correct_bcs', \
-		'trim', 'i_filt', 'rc_filt', 'write_fastq']
+		'trim', 'i_filt', 'write_fastq']
 
 	# order based on ctrl order
 	ord_steps = [step for step in ctrl if step in steps]
@@ -839,11 +839,6 @@ def filter_on_illumina(df, i_df):
 def filter_on_read_count(df, read_thresh):
     
     bc_df = get_bc1_matches()
-#     bc_df.rename({'bc1_dt':'bc1_1', 'bc1_randhex':'bc1_2'}, axis=1, inplace=True)
-#     bc_df = bc_df[['bc1_1', 'bc1_2']]
-#     swap_bcs = bc_df.copy(deep=True)
-#     bc_df = pd.concat([bc_df, swap_bcs])
-#     bc_df.rename({'bc1_1':'bc1', 'bc1_2':'bc1_partner'}, axis=1, inplace=True)
     
     df['bc'] = df.bc3+df.bc2+df.bc1
 
@@ -916,8 +911,6 @@ def main():
 	i_file = args.i_file
 	rc = int(args.rc)
 	steps = check_steps(args.steps)
-
-
 
 	# verbose = args.verbose
 

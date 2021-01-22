@@ -15,10 +15,10 @@ def get_args():
 
 	parser.add_argument('-f', dest='fastq',
 		help='FASTQ file output from Lima with long split-seq reads.')
-	# parser.add_argument('-steps', dest='steps', default='all',
-	# 	help='Comma separated list of steps to perform. Default is all. Options '\
-	# 		'include: score_linkers, align_linkers, correct_bcs, trim, i_filt, '\
-	# 		'rc_filt, write_fastq')
+	parser.add_argument('-steps', dest='steps', default='all',
+		help='Comma separated list of steps to perform. Default is all. Options '\
+			'include: score_linkers, align_linkers, correct_bcs, trim, i_filt, '\
+			'rc_filt, write_fastq')
 	parser.add_argument('-o', dest='oprefix',
 		help='Output file path/prefix')
 	parser.add_argument('-t', dest='threads', 
@@ -34,19 +34,35 @@ def get_args():
 	args = parser.parse_args()
 	return args
 
-# def check_inputs(args):
-# 	steps = args.steps.split(',')
-# 	ctrl = ['score_linkers', 'align_linkers', 'correct_bcs', \
-# 		'trim', 'i_filt', 'rc_filt', 'write_fastq']
+def check_steps(steps):
+	steps = steps.split(',')
+	ctrl = ['score_linkers', 'align_linkers', 'correct_bcs', \
+		'trim', 'i_filt', 'rc_filt', 'write_fastq']
 
-# 	# order based on ctrl order
-# 	ord_steps = [step for step in ctrl if step in steps]
-# 	invalid_steps = [step for step in steps if step not in ctrl]
+	# order based on ctrl order
+	ord_steps = [step for step in ctrl if step in steps]
+	invalid_steps = [step for step in steps if step not in ctrl]
 
-# 	if invalid_steps:
-# 		raise ValueError('Steps: {}'.format(invalid_steps))
+	# step doesn't exist
+	if invalid_steps:
+		raise ValueError('Steps {} are not valid choices.'.format(invalid_steps))
 
-	#
+	# if a number of steps are given are they all in a row?
+	if len(ord_steps) >= 1:
+		gaps = [1 if step in ord_steps else 0 for step in ctrl]
+		gaps = ''.join(gaps)
+		if '01' in gaps:
+			raise ValueError('Multiple steps given without all intermediate steps.')
+
+	# set up dictionary with steps
+	s = dict()
+	if steps == 'all':
+		for step in ctrl:
+			s[step] = True
+	else:
+		for step in ord_steps:
+			s[step] = True
+	return s
 
 def get_linkers():
 	# TODO
@@ -60,7 +76,7 @@ def get_linkers():
 	return l1, l1_rc, l2, l2_rc
 
 def load_barcodes():
-	pkg_path = '/data/users/freese/mortazavi_lab/bin/pacbio-splitpipe'
+	pkg_path = os.path.dirname(__file__)
 	with open(pkg_path + '/barcodes/bc_dict_v1.pkl', 'rb') as f:
 		edit_dict_v1 = pickle.load(f)
 	with open(pkg_path + '/barcodes/bc_dict_v2.pkl', 'rb') as f:
@@ -73,7 +89,7 @@ def load_barcodes():
 	return bc1_edit_dict, bc2_edit_dict, bc3_edit_dict
 
 def load_barcodes_set():
-	pkg_path = '/data/users/freese/mortazavi_lab/bin/pacbio-splitpipe'
+	pkg_path = os.path.dirname(__file__)
 	with open(pkg_path + '/barcodes/bc_dict_v1.pkl', 'rb') as f:
 		edit_dict_v1 = pickle.load(f)
 	with open(pkg_path + '/barcodes/bc_dict_v2.pkl', 'rb') as f:
@@ -96,7 +112,8 @@ def load_barcodes_set():
 
 def get_bc1_matches():
 	# from spclass.py - barcodes and their well/primer type identity
-	bc_file = '/data/users/freese/mortazavi_lab/bin/pacbio-splitpipe/barcodes/bc_8nt_v2.csv'
+	pkg_path = os.path.dirname(__file__)
+	bc_file = pkg_path+'/barcodes/bc_8nt_v2.csv'
 	bc_df = pd.read_csv(bc_file, index_col=0, names=['bc'])
 	bc_df['well'] = [i for i in range(0, 48)]+[i for i in range(0, 48)]
 	bc_df['primer_type'] = ['dt' for i in range(0, 48)]+['randhex' for i in range(0, 48)]
@@ -280,7 +297,12 @@ def align_linker_seqs(x, l1, l2, l1_rc, l2_rc):
 				one_alignment_only=True)
 
 	# grab start and end of each linker
-	l1_start = l1_a[0].start
+	try:
+		l1_start = l1_a[0].start
+	except:
+		print('REEEEE')
+		print(x.read_name)
+		raise ValueError('REEEE')
 	l1_stop = l1_a[0].end
 	l2_start = l2_a[0].start
 	l2_stop = l2_a[0].end
@@ -538,11 +560,6 @@ def get_perfect_bc_counts(df, verbose=False):
 	counts = df.loc[(df.bc1_valid)&(df.bc2_valid)&(df.bc3_valid)]
 	counts = counts[['bc1', 'bc2', 'bc3']].value_counts()
 	count_threshold = max(2, counts.iloc[abs(counts.cumsum()/counts.sum()-reads_in_cells_thresh).values.argmin()])
-
-	# their way 
-#	 counts = df.query('bc1_valid & bc2_valid & bc3_valid')\
-#				   .groupby(['bc1','bc2','bc3']).size().sort_values(ascending=False)
-#	 count_threshold = max(5, counts.iloc[abs(counts.cumsum()/counts.sum()-reads_in_cells_thresh).values.argmin()])
 	
 	return df, counts, count_threshold
 
@@ -837,8 +854,6 @@ def filter_on_read_count(df, read_thresh):
     temp['bc1_partner'] = temp.apply(lambda x: bc_df.loc[bc_df.bc1_dt == x.bc1, 'bc1_randhex'].values[0] \
         if x.bc1 in bc_df.bc1_dt.tolist() else bc_df.loc[bc_df.bc1_randhex == x.bc1, 'bc1_dt'].values[0], \
         axis=1)        
-#     print(bc_df.head())
-#     temp = temp.merge(bc_df, how='left', on='bc1')
     temp['bc_partner'] = temp.bc3+temp.bc2+temp.bc1_partner
     temp['bc_partner_counts'] = temp.apply(lambda x: temp.loc[temp.bc == x.bc_partner, 'bc_counts'].values[0] \
         if x.bc_partner in temp.bc.tolist() else 0, axis=1)
@@ -861,8 +876,7 @@ def process_illumina_bcs(ifile):
 	i_df['bc3'] = i_df.bc.str.slice(start=0, stop=8)
 	i_df['bc2'] = i_df.bc.str.slice(start=8, stop=16)
 	i_df['bc1'] = i_df.bc.str.slice(start=16, stop=24)
-	# i_bcs = i_df.bc.tolist()
-
+	
 	bc_df = get_bc1_matches()
 
 	# then merge on dt bc1 with illumina barcodes
@@ -901,90 +915,101 @@ def main():
 	t = int(args.threads)
 	i_file = args.i_file
 	rc = int(args.rc)
+	steps = check_steps(args.steps)
+
+
+
 	# verbose = args.verbose
 
 	sns.set_context("paper", font_scale=1.8)
 
-	df = fastq_to_df(fastq)	
-	df = find_linkers(df, t=t)
+	# score linkers in each read
+	if score_linkers:
+		df = fastq_to_df(fastq)	
+		df = find_linkers(df, t=t)
 
-	fname = oprefix+'_seq_linker_alignment_scores.tsv'
-	df.to_csv(fname, sep='\t', index=False)
+		fname = oprefix+'_seq_linker_alignment_scores.tsv'
+		df.to_csv(fname, sep='\t', index=False)
 
-	# # todo - remove
-	# df = pd.read_csv('test_seq_linker_alignment_scores.tsv', sep='\t')
+	    # some qc plots
+		plot_linker_scores(df, oprefix)
+		plot_linker_heatmap(df, oprefix, how='integer')
+		plot_linker_heatmap(df, oprefix, how='proportion')
 
-	# some qc plots
-	plot_linker_scores(df, oprefix)
-	plot_linker_heatmap(df, oprefix, how='integer')
-	plot_linker_heatmap(df, oprefix, how='proportion')
 
 	# TODO - look for dist of occurrences of each linker within each read
 	# we can maybe decrease the search space for each read by truncating 
 	# the read
+	# align linkers that scored high enough to get position of 
+	# each linker within each read - this step can take a while!
+	if steps['align_linkers'] and not steps['score_linkers']:
+		fname = oprefix+'_seq_linker_alignment_scores.tsv'
+		df = pd.read_csv(fname, sep='\t')
+	if steps['align_linkers']: 
+		df = get_linker_alignments(df, t=t, l1_m=3, l2_m=3, verbose=True)
+		fname = oprefix+'_seq_linker_alignments.tsv'
+		df.to_csv(fname, sep='\t', index=False)
 
-	# get alignment information for each linker 
-	df = get_linker_alignments(df, t=t, l1_m=3, l2_m=3, verbose=True)
-	fname = oprefix+'_seq_linker_alignments.tsv'
-	df.to_csv(fname, sep='\t', index=False)
+	# correct barcodes 
+	if steps['correct_bcs'] and not steps['align_linkers']
+		fname = oprefix+'_seq_linker_alignment_scores.tsv'
+		df = pd.read_csv(fname, sep='\t')
+	if steps['correct_bcs']:
+		# get barcode information from each read
+		df = get_bcs_umis(df, t=t)
+		df, counts, count_thresh = get_perfect_bc_counts(df)
 
-	# # TODO remove this
-	# df = pd.read_csv(fname, sep='\t')
+		fname = oprefix+'_seq_bcs.tsv'
+		df.to_csv(fname, sep='\t', index=False)
 
-	# get barcode information from each read
-	df = get_bcs_umis(df, t=t)
-	df, counts, count_thresh = get_perfect_bc_counts(df)
-	fname = 'oprefix'+'_seq_bcs.tsv'
-	df.to_csv(fname, sep='\t', index=False)
+		# some more qc plots
+		plot_umis_v_barcodes(df, oprefix, 'Pre-correction')
+		plot_umis_per_cell(df, oprefix, 'Pre-correction')
 
-	# some more qc plots
-	plot_umis_v_barcodes(df, oprefix, 'Pre-correction')
-	plot_umis_per_cell(df, oprefix, 'Pre-correction')
+		edit_dist = 3
+		df = correct_barcodes(df, counts, count_thresh, edit_dist, t=t)
+		fname = oprefix+'_seq_corrected_bcs.tsv'
 
-	# correct barcodes that we can 
-	edit_dist = 3
-	df = correct_barcodes(df, counts, count_thresh, edit_dist, t=t)
-	fname = oprefix+'_seq_corrected_bcs.tsv'
+		# ***TODO probably want to drop nans here.... not sure what's going on***
+		df.to_csv(fname, sep='\t', index=False)
 
-	# ***TODO probably want to drop nans here.... not sure what's going on***
-	# # df.to_csv(fname, sep='\t', index=False)
+		# some more qc plots
+		plot_umis_v_barcodes(df, oprefix, 'Post-correction')
+		plot_umis_per_cell(df, oprefix, 'Post-correction')
 
-	# # some more qc plots
-	plot_umis_v_barcodes(df, oprefix, 'Post-correction')
-	plot_umis_per_cell(df, oprefix, 'Post-correction')
+	# trim reads of their linker + barcode construct
+	if steps['trim'] and not steps['correct_bcs']:
+		fname = oprefix+'_seq_corrected_bcs.tsv'
+		df = pd.read_csv(fname, sep='\t')
+	if steps['trim']:
+		df = trim_bcs(df, t=t)
+		df = flip_reads(df, t=t)
 
-	# # todo: remove this
-	# df = pd.read_csv(fname, sep='\t')
+		fname = oprefix+'_trimmed_flipped.tsv'
+		df.to_csv(fname, sep='\t', index=False)
 
-	# trim and orient reads based on where the linkers were found - need to make
-	# sure df at this point will work
-	df = trim_bcs(df, t=t)
-	df = flip_reads(df, t=t)
-	fname = oprefix+'_trimmed_flipped.tsv'
-	df.to_csv(fname, sep='\t', index=Fal÷se)
+		# what do the read lengths look like after this?
+		plot_read_length(df, oprefix)
 
-	# # what do the read lengths look like after this?
-	# plot_read_length(df, oprefix)
+	# filter based on which bc combinations were also seen in Illumina
+	if steps['i_filt'] and not steps['correct_bcs']:
+		fname = oprefix+'_trimmed_flipped.tsv'
+		df = pd.read_csv(fname, sep='\t')
+	if steps['i_filt']:
+		if i_file:
+			i_bcs = process_illumina_bcs(i_file)
+			df = filter_on_illumina(df, i_bcs)
+			plot_umis_v_barcodes(df, oprefix, 'Illumina')
+		# df = filter_on_read_count(df, rc)
+		fname = oprefix+'_filtered.tsv'
+		df.to_csv(fname, sep='\t', index=False)
 
-	# todo: remove this
-	df = pd.read_csv(fname, sep='\t')
-
-	# finally, filter based on number of reads per cell bc and 
-	# corresponding Illumina bcs (if available)
-	if i_file:
-		i_bcs = process_illumina_bcs(i_file)
-		df = filter_on_illumina(df, i_bcs)
-		plot_umis_v_barcodes(df, oprefix, 'Illumina')
-	# df = filter_on_read_count(df, rc)
-
-	fname = oprefix+'_filtered.tsv'
-	df.to_csv(fname, sep='\t', index=False)
-
-	# # todo - remove
-	# df = pd.read_csv(fname, sep='\t')
-
-	# and write to a fastq file
-	df = write_fastq(df, oprefix)
+	# write the fastq with the cell ID and UMI in the read name
+	if steps['write_fastq'] and not steps['i_filt']:
+		fname = oprefix+'_filtered.tsv'
+	    df = pd.read_csv(fname, sep='\t')
+	if steps['write_fastq']:
+		df = write_fastq(df, oprefix)
 
 if __name__ == '__main__':
 	main()

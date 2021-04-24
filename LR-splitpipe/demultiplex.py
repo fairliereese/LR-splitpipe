@@ -38,7 +38,9 @@ def check_steps(steps):
 	steps = steps.split(',')
 	ctrl = ['score_linkers', 'align_linkers', 'correct_bcs', \
 		'trim', 'i_filt', 'write_fastq']
-
+	if steps == ['all']:
+		steps = ctrl 
+		
 	# order based on ctrl order
 	ord_steps = [step for step in ctrl if step in steps]
 	invalid_steps = [step for step in steps if step not in ctrl]
@@ -735,8 +737,6 @@ def plot_umis_per_cell(df, oprefix, kind):
 	plt.clf()
 
 def trim_bcs_x(x):
-#	 # TODO remember these stupid directions are wrong
-#	 # TODO can make this faster don't use this stupid function
 #	 if x.dir == '+':
 #		 trim_start = x.l1_stop+8
 #	 elif x.dir == '-':
@@ -944,7 +944,7 @@ def main():
 		df.to_csv(fname, sep='\t', index=False)
 
 	# correct barcodes 
-	if steps['correct_bcs'] and not steps['align_linkers']
+	if steps['correct_bcs'] and not steps['align_linkers']:
 		fname = oprefix+'_seq_linker_alignment_scores.tsv'
 		df = pd.read_csv(fname, sep='\t')
 	if steps['correct_bcs']:
@@ -1000,7 +1000,7 @@ def main():
 	# write the fastq with the cell ID and UMI in the read name
 	if steps['write_fastq'] and not steps['i_filt']:
 		fname = oprefix+'_filtered.tsv'
-	    df = pd.read_csv(fname, sep='\t')
+		df = pd.read_csv(fname, sep='\t')
 	if steps['write_fastq']:
 		df = write_fastq(df, oprefix)
 

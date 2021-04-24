@@ -1,5 +1,6 @@
 import pandas as pd
 import argparse
+import os
 
 def get_args():
 	parser = argparse.ArgumentParser()
@@ -17,9 +18,8 @@ def get_args():
 	return args
 
 def get_bc1_matches():
-	# from spclass.py - barcodes and their well/primer type identity
-	bc_file = '/dfs6/pub/freese/mortazavi_lab/bin/pacbio-splitpipe/barcodes/bc_8nt_v2.csv'
-	# bc_file = '/Users/fairliereese/mortazavi_lab/bin/pacbio-splitpipe/barcodes/bc_8nt_v2.csv'
+	pkg_path = os.path.dirname(__file__)
+	bc_file = pkg_path+'/barcodes/bc_8nt_v2.csv'
 	bc_df = pd.read_csv(bc_file, index_col=0, names=['bc'])
 	bc_df['well'] = [i for i in range(0, 48)]+[i for i in range(0, 48)]
 	bc_df['primer_type'] = ['dt' for i in range(0, 48)]+['randhex' for i in range(0, 48)]
@@ -72,8 +72,6 @@ def main():
 				bc3 = bc[:8]
 				bc2 = bc[8:16]
 				bc1 = bc[16:]
-				# if bc1 == 'GCTGCATG':
-				# 	print('hellow')
 				if bc1 in bc_df.bc1_randhex.tolist():
 					bc1 = bc_df.loc[bc_df.bc1_randhex==bc1, 'bc1_dt'].values[0]
 					bc = bc3+bc2+bc1

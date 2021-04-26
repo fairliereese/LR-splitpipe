@@ -14,7 +14,7 @@ def get_args():
 	parser = argparse.ArgumentParser()
 
 	parser.add_argument('-f', dest='fastq',
-		help='FASTQ file output from Lima with long split-seq reads.')
+		help='FASTQ file output from Lima with LR-Split-seq reads.')
 	parser.add_argument('-steps', dest='steps', default='all',
 		help='Comma separated list of steps to perform. Default is all. Options '\
 			'include: score_linkers, align_linkers, correct_bcs, trim, i_filt, '\

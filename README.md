@@ -70,7 +70,7 @@ Take the barcode/UMI for each read and append it to the read name of each read. 
 
 ## Adding cell barcode as BAM tag
 
-After running the demultiplexer, reads should be mapped and converted to a SAM file. In this file format, the barcode, which is in the read header in fastq format, can be moved to a cell barcode (CB:Z:NNNNN...) tag as part of the SAM file. This is useful to be able to run [TALON](https://github.com/mortazavilab/TALON) on the single-cell data down the line. To do this, `run add_bam_tag.py`.
+After running the demultiplexer, reads should be mapped and converted to a SAM file. In this file format, the barcode, which is in the read header in fastq format, can be moved to a cell barcode (CB:Z:NNNNN...) tag as part of the SAM file. This is useful to be able to run [TALON](https://github.com/mortazavilab/TALON) on the single-cell data down the line. To do this, run `add_bam_tag.py`.
 
 Note: It is recommended to use the `--merge_primers` option. This option was only included to compare the random hexamer and oligo-dT primed reads for the pilot experiment.
 

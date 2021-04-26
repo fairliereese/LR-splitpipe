@@ -77,6 +77,7 @@ def get_linkers():
 	l2 = rev_comp(l2_rc)
 	return l1, l1_rc, l2, l2_rc
 
+# From the Parse biosciences pipeline
 def load_barcodes():
 	pkg_path = os.path.dirname(__file__)
 	with open(pkg_path + '/barcodes/bc_dict_v1.pkl', 'rb') as f:
@@ -90,6 +91,7 @@ def load_barcodes():
 	
 	return bc1_edit_dict, bc2_edit_dict, bc3_edit_dict
 
+# From the Parse biosciences pipeline
 def load_barcodes_set():
 	pkg_path = os.path.dirname(__file__)
 	with open(pkg_path + '/barcodes/bc_dict_v1.pkl', 'rb') as f:
@@ -112,6 +114,7 @@ def load_barcodes_set():
 	bc_8nt_bc3 = bc_8nt_set_dict['bc3']
 	return list(bc_8nt_bc1), list(bc_8nt_bc2), list(bc_8nt_bc3)
 
+# From the Parse biosciences pipeline
 def get_bc1_matches():
 	# from spclass.py - barcodes and their well/primer type identity
 	pkg_path = os.path.dirname(__file__)
@@ -518,7 +521,7 @@ def get_bcs_umis(df, t=1):
 	
 	return df
 
-# from align.py
+# From the Parse Biosciences pipeline
 def get_min_edit_dists(bc,edit_dict,max_d=3):
 	"""Returns a list of nearest edit dist seqs
 	Input 8nt barcode, edit_dist_dictionary
@@ -536,6 +539,7 @@ def get_min_edit_dists(bc,edit_dict,max_d=3):
 		bc_matches = edit_dict[3][bc]
 	return bc_matches,edit_dist
 
+# From the Parse Biosciences pipeline
 def get_perfect_bc_counts(df, verbose=False):
 	reads_in_cells_thresh = 0.92
 	
@@ -565,7 +569,7 @@ def get_perfect_bc_counts(df, verbose=False):
 	
 	return df, counts, count_threshold
 
-# from align.py
+# From the Parse Biosciences pipeline
 def correct_seq_barcodes(x,
 		counts, count_thresh,
 		bc_edit_dist,

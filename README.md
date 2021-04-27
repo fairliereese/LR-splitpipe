@@ -4,7 +4,7 @@ LR-splitpipe is a pipeline designed for demultiplexing, debarcoding, and prepari
 
 ## Demultiplexing reads
 
-![png](demux_pipeline.png)
+<img align="left" width="450" src="demux_pipeline.png">
 
 
 To demultiplex reads for their Split-seq barcodes, use `demultiplex.py`.

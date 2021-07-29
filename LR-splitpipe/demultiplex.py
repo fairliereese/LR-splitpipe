@@ -52,7 +52,7 @@ def check_steps(steps):
 	# if a number of steps are given are they all in a row?
 	if len(ord_steps) >= 1:
 		gaps = [1 if step in ord_steps else 0 for step in ctrl]
-		gaps = ''.join(gaps)
+		gaps = ''.join([str(x) for x in gaps])
 		if '01' in gaps:
 			raise ValueError('Multiple steps given without all intermediate steps.')
 
@@ -921,7 +921,7 @@ def main():
 	sns.set_context("paper", font_scale=1.8)
 
 	# score linkers in each read
-	if score_linkers:
+	if steps['score_linkers']:
 		df = fastq_to_df(fastq)	
 		df = find_linkers(df, t=t)
 

@@ -81,6 +81,7 @@ def get_linkers():
 # From the Parse biosciences pipeline
 def load_barcodes():
 	pkg_path = os.path.dirname(__file__)
+	pkg_path = '/'.join(pkg_path.split('/')[:-1])
 	with open(pkg_path + '/barcodes/bc_dict_v1.pkl', 'rb') as f:
 		edit_dict_v1 = pickle.load(f)
 	with open(pkg_path + '/barcodes/bc_dict_v2.pkl', 'rb') as f:
@@ -95,6 +96,7 @@ def load_barcodes():
 # From the Parse biosciences pipeline
 def load_barcodes_set():
 	pkg_path = os.path.dirname(__file__)
+	pkg_path = '/'.join(pkg_path.split('/')[:-1])
 	with open(pkg_path + '/barcodes/bc_dict_v1.pkl', 'rb') as f:
 		edit_dict_v1 = pickle.load(f)
 	with open(pkg_path + '/barcodes/bc_dict_v2.pkl', 'rb') as f:

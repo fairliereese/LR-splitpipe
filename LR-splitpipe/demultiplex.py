@@ -121,6 +121,7 @@ def load_barcodes_set():
 def get_bc1_matches():
 	# from spclass.py - barcodes and their well/primer type identity
 	pkg_path = os.path.dirname(__file__)
+	pkg_path = '/'.join(pkg_path.split('/')[:-1])
 	bc_file = pkg_path+'/barcodes/bc_8nt_v2.csv'
 	bc_df = pd.read_csv(bc_file, index_col=0, names=['bc'])
 	bc_df['well'] = [i for i in range(0, 48)]+[i for i in range(0, 48)]

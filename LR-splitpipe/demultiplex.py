@@ -893,7 +893,7 @@ def write_fastq(df, oprefix):
 
 	# create the read name header with the bc and umi information
 	df.fillna(value='_', inplace=True)
-	df['header'] = '@'+df.read_name+':'+df.bc+'_'+df.umi
+	df['header'] = '@'+df.read_name+':'+df.bc1+'_'+df.bc2+'_'+df.bc3+'_'+df.umi
 	df = df[['header', 'seq']]
 
 	# write the fastq

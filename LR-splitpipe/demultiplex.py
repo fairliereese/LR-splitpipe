@@ -9,6 +9,7 @@ import time
 import math
 import sys
 import argparse
+import os
 
 def get_args():
 	parser = argparse.ArgumentParser()
@@ -80,6 +81,7 @@ def get_linkers():
 # From the Parse biosciences pipeline
 def load_barcodes():
 	pkg_path = os.path.dirname(__file__)
+	pkg_path = '/'.join(pkg_path.split('/')[:-1])
 	with open(pkg_path + '/barcodes/bc_dict_v1.pkl', 'rb') as f:
 		edit_dict_v1 = pickle.load(f)
 	with open(pkg_path + '/barcodes/bc_dict_v2.pkl', 'rb') as f:
@@ -94,6 +96,7 @@ def load_barcodes():
 # From the Parse biosciences pipeline
 def load_barcodes_set():
 	pkg_path = os.path.dirname(__file__)
+	pkg_path = '/'.join(pkg_path.split('/')[:-1])
 	with open(pkg_path + '/barcodes/bc_dict_v1.pkl', 'rb') as f:
 		edit_dict_v1 = pickle.load(f)
 	with open(pkg_path + '/barcodes/bc_dict_v2.pkl', 'rb') as f:
@@ -118,6 +121,7 @@ def load_barcodes_set():
 def get_bc1_matches():
 	# from spclass.py - barcodes and their well/primer type identity
 	pkg_path = os.path.dirname(__file__)
+	pkg_path = '/'.join(pkg_path.split('/')[:-1])
 	bc_file = pkg_path+'/barcodes/bc_8nt_v2.csv'
 	bc_df = pd.read_csv(bc_file, index_col=0, names=['bc'])
 	bc_df['well'] = [i for i in range(0, 48)]+[i for i in range(0, 48)]
@@ -889,7 +893,7 @@ def write_fastq(df, oprefix):
 
 	# create the read name header with the bc and umi information
 	df.fillna(value='_', inplace=True)
-	df['header'] = '@'+df.read_name+':'+df.bc+'_'+df.umi
+	df['header'] = '@'+df.read_name+':'+df.bc1+'_'+df.bc2+'_'+df.bc3+'_'+df.umi
 	df = df[['header', 'seq']]
 
 	# write the fastq

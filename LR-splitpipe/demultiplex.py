@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from pandarallel import pandarallel
 from Bio import pairwise2
-import time 
+import time
 import math
 import sys
 import argparse
@@ -22,7 +22,7 @@ def get_args():
             'write_fastq')
 	parser.add_argument('-o', dest='oprefix',
 		help='Output file path/prefix')
-	parser.add_argument('-t', dest='threads', 
+	parser.add_argument('-t', dest='threads',
 		help='Number of threads to run on (multithreading is recommended)')
 	parser.add_argument('-i_file', dest='i_file', default=None,
 		help='Barcodes from Illumina to filter PacBio barcodes on. '+\
@@ -40,8 +40,8 @@ def check_steps(steps):
 	ctrl = ['score_linkers', 'align_linkers', 'correct_bcs', \
 		'trim', 'i_filt', 'write_fastq']
 	if steps == ['all']:
-		steps = ctrl 
-		
+		steps = ctrl
+
 	# order based on ctrl order
 	ord_steps = [step for step in ctrl if step in steps]
 	invalid_steps = [step for step in steps if step not in ctrl]
@@ -86,11 +86,11 @@ def load_barcodes():
 		edit_dict_v1 = pickle.load(f)
 	with open(pkg_path + '/barcodes/bc_dict_v2.pkl', 'rb') as f:
 		edit_dict_v2 = pickle.load(f)
-	
+
 	bc1_edit_dict = edit_dict_v1
 	bc2_edit_dict = edit_dict_v1
 	bc3_edit_dict = edit_dict_v2
-	
+
 	return bc1_edit_dict, bc2_edit_dict, bc3_edit_dict
 
 # From the Parse biosciences pipeline
@@ -101,7 +101,7 @@ def load_barcodes_set():
 		edit_dict_v1 = pickle.load(f)
 	with open(pkg_path + '/barcodes/bc_dict_v2.pkl', 'rb') as f:
 		edit_dict_v2 = pickle.load(f)
-		
+
 	# read in barcode sequences
 	bc_8nt_v1 = pd.read_csv(pkg_path + '/barcodes/bc_8nt_v1.csv',names=['barcode'],index_col=0).barcode.values
 	bc_8nt_v2 = pd.read_csv(pkg_path + '/barcodes/bc_8nt_v2.csv',names=['barcode'],index_col=0).barcode.values
@@ -135,8 +135,8 @@ def get_bc1_matches():
 	return bc_df
 
 def rev_comp(s):
-	rc_map = {'A': 'T', 'T': 'A', 'G': 'C', 'C': 'G', 
-		   'a': 't', 't': 'a', 'g': 'c', 'c': 'g', 
+	rc_map = {'A': 'T', 'T': 'A', 'G': 'C', 'C': 'G',
+		   'a': 't', 't': 'a', 'g': 'c', 'c': 'g',
 		   'n': 'n', '*': '*'}
 	rev_comp = [rc_map[i] for i in s]
 	rev_comp.reverse()
@@ -144,19 +144,19 @@ def rev_comp(s):
 	return rev_comp
 
 def align_linker_score(x, l_seqs, l_prefs):
-	
+
 	entry = {}
-	
+
 	# +1 for match
 	# -1 for mismatch
 	# -1 for gap open
 	# -1 for gap extend
-	# this scoring schema allows us to know exactly 
+	# this scoring schema allows us to know exactly
 	# how many errors are in each best alignment
 	for l_seq, pref in zip(l_seqs, l_prefs):
 		a = pairwise2.align.localms(x.seq, l_seq,
 				1, -1, -1, -1,
-				one_alignment_only=True, 
+				one_alignment_only=True,
 				score_only=True)
 		score = a
 		entry['{}_score'.format(pref)] = score
@@ -167,18 +167,18 @@ def find_linkers(df, t=1):
 	l1, l1_rc, l2, l2_rc = get_linkers()
 	l_seqs = [l1, l1_rc, l2, l2_rc]
 	l_prefs = ['l1', 'l1_rc', 'l2', 'l2_rc']
-	
+
 	if t == 1:
 		l_df = df.apply(align_linker_score, args=(l_seqs, l_prefs),
 			axis=1, result_type='expand')
 	else:
-		pandarallel.initialize(nb_workers=t)	
+		pandarallel.initialize(nb_workers=t)
 		l_df = df.parallel_apply(align_linker_score, args=(l_seqs, l_prefs),
 			axis=1, result_type='expand')
-	
+
 	df = pd.concat([df, l_df], axis=1)
-	
-	return df  
+
+	return df
 
 
 def fastq_to_df(fastq):
@@ -209,11 +209,11 @@ def fastq_to_df(fastq):
 	df.columns = ['seq']
 	df['read_name'] = read_names
 	df['strand'] = strands
-	
+
 	return df
 
 def plot_hist(x, **kwargs):
-	
+
 	# linker 1
 	if x.max() == 22:
 		mismatch_lines = [22, 21, 20, 19]
@@ -221,7 +221,7 @@ def plot_hist(x, **kwargs):
 	elif x.max() == 30:
 		mismatch_lines = [30, 29, 28, 27]
 	ax = sns.histplot(x, binwidth=1)
-	for l in mismatch_lines: 
+	for l in mismatch_lines:
 		plt.axvline(l, color='k', linestyle='-', linewidth=1)
 
 
@@ -229,7 +229,7 @@ def plot_linker_scores(df, oprefix):
 	val_vars = ['l1_score', 'l2_score', 'l1_rc_score', 'l2_rc_score']
 	cols = ['read_name'] + val_vars
 	temp = df[cols].melt(id_vars='read_name', value_vars=val_vars)
-	
+
 	g = sns.FacetGrid(temp, col='variable')
 	g.map(plot_hist, 'value')
 
@@ -257,7 +257,7 @@ def plot_linker_heatmap(df, oprefix, how='integer'):
 
 		ax = sns.heatmap(m_df, annot=True)
 		_ = ax.set(xlabel='Mismatches/indels allowed in l2',
-				   ylabel='Mismatches/indels allowed in l1', 
+				   ylabel='Mismatches/indels allowed in l1',
 				   title='Reads recovered')
 
 	elif how == 'proportion':
@@ -278,7 +278,7 @@ def plot_linker_heatmap(df, oprefix, how='integer'):
 
 		ax = sns.heatmap(p_df, annot=True)
 		_ = ax.set(xlabel='Percent mismatches/indels allowed in l2',
-				   ylabel='Percent mismatches/indels allowed in l1', 
+				   ylabel='Percent mismatches/indels allowed in l1',
 				   title='Reads recovered')
 
 	fname = '{}_{}_linker_mismatch_heatmap.png'.format(oprefix, how)
@@ -288,17 +288,17 @@ def plot_linker_heatmap(df, oprefix, how='integer'):
 
 # get the linker alignments with the seq and the start and end of each alignment
 def align_linker_seqs(x, l1, l2, l1_rc, l2_rc):
-	
+
 	entry = {}
-	
+
 	# forward or reverse search?
 	if x.l_dir == '-':
 		l1 = l1_rc
 		l2 = l2_rc
-		
+
 	# compute alignments for both linkers in the correct orientation
 	# use the default alignment
-	l1_a = pairwise2.align.localms(x.seq, l1, 
+	l1_a = pairwise2.align.localms(x.seq, l1,
 				1, -1, -1, -1,
 				one_alignment_only=True)
 	l2_a = pairwise2.align.localms(x.seq, l2,
@@ -315,7 +315,7 @@ def align_linker_seqs(x, l1, l2, l1_rc, l2_rc):
 	l1_stop = l1_a[0].end
 	l2_start = l2_a[0].start
 	l2_stop = l2_a[0].end
-	
+
 	# calculate some metrics
 	l1_len = l1_stop-l1_start
 	l2_len = l2_stop-l2_start
@@ -323,9 +323,9 @@ def align_linker_seqs(x, l1, l2, l1_rc, l2_rc):
 		bc2_len = l1_start-l2_stop
 	elif x.l_dir == '-':
 		bc2_len = l2_start-l1_stop
-	else: 
+	else:
 		bc2_len = np.nan
-		
+
 
 	# construct an entry
 	entry['l1_start'] = l1_start
@@ -335,10 +335,10 @@ def align_linker_seqs(x, l1, l2, l1_rc, l2_rc):
 	entry['l1_len'] = l1_len
 	entry['l2_len'] = l2_len
 	entry['bc2_len'] = bc2_len
-	 
+
 	return entry
 
-# df: dataframe of each read with its linker sequences scored 
+# df: dataframe of each read with its linker sequences scored
 # choose l#_m args or l#_p args
 # l1_m (optional): number of mismatches permitted in linker 1
 # l2_m (optional): number of mismatches permitted in linker 2
@@ -346,11 +346,11 @@ def align_linker_seqs(x, l1, l2, l1_rc, l2_rc):
 # l2_p (optional): percentage of mismatches permitted in linker 2
 def get_linker_alignments(df, t=1, l1_m=None, l2_m=None, l1_p=None, l2_p=None,
 		keep_dupes=False, verbose=False):
-	
+
 	# calculate lowest scores viable for l1 and l2
 	if l1_m and l2_m:
 		if float(l1_m).is_integer() and float(l2_m).is_integer():
-			l1_min = 22-l1_m 
+			l1_min = 22-l1_m
 			l2_min = 30-l2_m
 		else:
 			raise TypeError('l1_m and l2_m must be integers.')
@@ -378,24 +378,24 @@ def get_linker_alignments(df, t=1, l1_m=None, l2_m=None, l1_p=None, l2_p=None,
 	fwd_df = df.loc[(df.l1_score>=l1_min)&(df.l2_score>=l2_min)]
 	rev_df = df.loc[(df.l1_rc_score>=l1_min)&(df.l2_rc_score>=l2_min)]
 	both_df = df.loc[list(set(fwd_df.index)&set(rev_df.index))]
-	
+
 	if verbose:
 		print('Found {} reads with linkers found in the fwd direction'.format(len(fwd_df.index)))
 		print('Found {} reads with linkers found in the rev direction'.format(len(rev_df.index)))
-		print('Found {} reads with linkers found in both directions'.format(len(both_df.index)))	
-	
+		print('Found {} reads with linkers found in both directions'.format(len(both_df.index)))
+
 	# first remove those that are duplicated across fwd and rev dfs
 	fwd_df = fwd_df.loc[~fwd_df.index.isin(both_df.index)]
 	rev_df = rev_df.loc[~rev_df.index.isin(both_df.index)]
-	
+
 	if verbose:
 		print('Number of fwd reads after removing reads from both dirs: {}'.format(len(fwd_df.index)))
 		print('Number of rev reads after removing reads from both dirs: {}'.format(len(rev_df.index)))
-	
+
 	# then assign orientation of found linkers
 	fwd_df['l_dir'] = '+'
 	rev_df['l_dir'] = '-'
-	
+
 	# tie break those that we can that found forward and reverse linkers
 	# with scores over the threshold using the sum of scores
 	if keep_dupes == True:
@@ -429,18 +429,18 @@ def get_linker_alignments(df, t=1, l1_m=None, l2_m=None, l1_p=None, l2_p=None,
 				print('Number of true tied reads {}'.format(len(fwd_tie_df.index)))
 				print('Number of true tied reads {}'.format(len(rev_tie_df.index)))
 
-	# concatenate all the dfs 
+	# concatenate all the dfs
 	dfs = []
 	cand_dfs = [fwd_df, rev_df, both_df, fwd_tie_df, rev_tie_df]
 	for d in cand_dfs:
 		if not d.empty:
 			dfs.append(d)
-			
+
 	df = pd.concat(dfs)
 
 	if verbose:
 		print('Aligning linkers for {} reads'.format(len(df.index)))
-	
+
 	# find the start and end of each alignment for the valid reads
 	l1, l1_rc, l2, l2_rc = get_linkers()
 	if t == 1:
@@ -451,7 +451,7 @@ def get_linker_alignments(df, t=1, l1_m=None, l2_m=None, l1_p=None, l2_p=None,
 		l_df = df.parallel_apply(align_linker_seqs, args=(l1, l2, l1_rc, l2_rc),
 			axis=1, result_type='expand')
 	df = pd.concat([df, l_df], axis=1)
-	
+
 	return df
 
 # TODO fix which barcode is which
@@ -485,7 +485,7 @@ def get_seq_bcs_umis(x):
 	entry = {}
 	entry['bc1'] = bc1
 	entry['bc2'] = bc2
-	entry['bc3'] = bc3 
+	entry['bc3'] = bc3
 	entry['umi'] = umi
 	return entry
 
@@ -499,17 +499,17 @@ def get_bcs_umis(df, t=1):
 	df.l1_stop = df.l1_stop.astype('int')
 	df.l2_start = df.l2_start.astype('int')
 	df.l2_stop = df.l2_stop.astype('int')
-		
+
 	# naive method, just look 8 bp up or downstream of the various linkers
 	if t == 1:
 		temp = df.apply(lambda x: get_seq_bcs_umis(x), axis=1, result_type='expand')
-	else: 
-		pandarallel.initialize(nb_workers=t)   
+	else:
+		pandarallel.initialize(nb_workers=t)
 		temp = df.parallel_apply(get_seq_bcs_umis, axis=1, result_type='expand')
 
 	df = pd.concat([df, temp], axis=1)
 
-	# # loop through each boi 
+	# # loop through each boi
 	# df['bc1'] = [seq[l1_stop:l1_stop+8] if d == '+' \
 	# 	else rev_comp(seq[l2_start-8:l2_start]) \
 	# 	for seq,l1_stop,l2_start,d in zip(df.seq,df.l1_stop,df.l2_start,df.l_dir)]
@@ -522,7 +522,7 @@ def get_bcs_umis(df, t=1):
 	# df['umi'] = [seq[l2_start-8-10:l2_start-8] if d == '+' \
 	# 	else rev_comp(seq[l2_stop+8:l2_stop+8+10]) \
 	# 	for seq,l2_start,l2_stop,d in zip(df.seq,df.l2_start,df.l2_stop,df.l_dir)]
-	
+
 	return df
 
 # From the Parse Biosciences pipeline
@@ -546,7 +546,7 @@ def get_min_edit_dists(bc,edit_dict,max_d=3):
 # From the Parse Biosciences pipeline
 def get_perfect_bc_counts(df, verbose=False):
 	reads_in_cells_thresh = 0.92
-	
+
 	# TODO
 	bc_8nt_bc3, bc_8nt_bc2, bc_8nt_bc1 = load_barcodes_set()
 
@@ -570,7 +570,7 @@ def get_perfect_bc_counts(df, verbose=False):
 	counts = df.loc[(df.bc1_valid)&(df.bc2_valid)&(df.bc3_valid)]
 	counts = counts[['bc1', 'bc2', 'bc3']].value_counts()
 	count_threshold = max(2, counts.iloc[abs(counts.cumsum()/counts.sum()-reads_in_cells_thresh).values.argmin()])
-	
+
 	return df, counts, count_threshold
 
 # From the Parse Biosciences pipeline
@@ -580,19 +580,19 @@ def correct_seq_barcodes(x,
 		bc1_dict,
 		bc2_dict,
 		bc3_dict):
-	
+
 	bc1 = x.bc1
 	bc2 = x.bc2
 	bc3 = x.bc3
-	
+
 	debug = False
 	if debug:
 		print('Attempting to correct barcodes : {}, {}, {}'.format(bc1, bc2, bc3))
-	
+
 	bc1_matches,edit_dist1 = get_min_edit_dists(bc1,bc1_dict,max_d=bc_edit_dist)
 	bc2_matches,edit_dist2  = get_min_edit_dists(bc2,bc2_dict,max_d=bc_edit_dist)
 	bc3_matches,edit_dist3  = get_min_edit_dists(bc3,bc3_dict,max_d=bc_edit_dist)
-	
+
 	# Check if any barcode matches have a counts above the threshold
 	if 0 == edit_dist1 == edit_dist2 == edit_dist3:
 		bc1 = bc1_matches[0]
@@ -623,7 +623,7 @@ def correct_seq_barcodes(x,
 			bc3 = bc3_fixed
 		else:
 			bc1 = bc2 = bc3 = np.nan
-		
+
 	entry = {}
 	entry['bc1'] = bc1
 	entry['bc2'] = bc2
@@ -631,30 +631,30 @@ def correct_seq_barcodes(x,
 
 	if debug:
 		print()
-		
-	return entry 
+
+	return entry
 
 def correct_barcodes(df, counts, count_thresh, bc_edit_dist, t=1):
-	
+
 	bc3_dict, bc2_dict, bc1_dict = load_barcodes()
-	
+
 	if t == 1:
 		temp = df.parallel_apply(correct_seq_barcodes,
 				args=(counts, count_thresh, bc_edit_dist, bc1_dict, bc2_dict, bc3_dict),
 				axis=1, result_type='expand')
-	else: 
+	else:
 		temp = df.apply(lambda x: correct_seq_barcodes(x, counts, count_thresh,
 					bc_edit_dist, bc1_dict, bc2_dict, bc3_dict),
 					axis=1, result_type='expand')
 		pandarallel.initialize(nb_workers=t)
-	
+
 	df.dropna(axis=0, subset=['bc1', 'bc2', 'bc3'], inplace=True)
 	df.drop(['bc1', 'bc2', 'bc3'], axis=1, inplace=True)
 	df = pd.concat([df, temp], axis=1)
-	
+
 	return df
 
-def plot_umis_v_barcodes(df, oprefix, kind):	
+def plot_umis_v_barcodes(df, oprefix, kind):
 	bc_cols = ['bc1', 'bc2', 'bc3']
 
 	# only want unique bc/umi combos
@@ -691,7 +691,7 @@ def plot_umis_v_barcodes(df, oprefix, kind):
 	plt.savefig(fname)
 	plt.clf()
 
-def plot_umis_per_cell(df, oprefix, kind):	   
+def plot_umis_per_cell(df, oprefix, kind):
 	bc_cols = ['bc1', 'bc2', 'bc3']
 
 	# get the number of reads per barcode
@@ -734,7 +734,7 @@ def plot_umis_per_cell(df, oprefix, kind):
 	plt.draw()
 
 	plt.tight_layout()
-	
+
 	if kind == 'Pre-correction':
 		kind = 'pre_correction'
 	elif kind == 'Post-correction':
@@ -753,38 +753,38 @@ def trim_bcs_x(x):
 		trim_seq = x.seq[x.trim_start:]
 	elif x.l_dir == '-':
 		trim_seq = x.seq[:x.trim_start]
-	return trim_seq  
+	return trim_seq
 
 # trim off the barcodes from the start of bc1 until the end of the read
 def trim_bcs(df, t=1, verbose=False):
-	
+
 	# add placeholders
 	df.trim_start = np.nan
-	
-	# separate into fwd/rev 
+
+	# separate into fwd/rev
 	fwd = df.loc[df.l_dir == '+'].copy(deep=True)
 	rev = df.loc[df.l_dir == '-'].copy(deep=True)
-		
+
 	# where should we start trimming the sequence?
 	# TODO remember that these directions are wrong
 	fwd['trim_start'] = fwd.l1_stop+8
 	rev['trim_start'] = rev.l1_start-8
 	fwd.trim_start = fwd.trim_start.astype('int')
 	rev.trim_start = rev.trim_start.astype('int')
-	
+
 	# put the dfs back together
 	dfs = []
 	cand_dfs = [fwd, rev]
 	for d in cand_dfs:
 		if not d.empty:
-			dfs.append(d)	
+			dfs.append(d)
 	df = pd.concat(dfs)
-	
+
 	if t == 1:
 		df['trim_seq'] = df.apply(trim_bcs_x, axis=1)
 	else:
 		pandarallel.initialize(nb_workers=t)
-		df['trim_seq'] =  df.parallel_apply(trim_bcs_x, axis=1)	
+		df['trim_seq'] =  df.parallel_apply(trim_bcs_x, axis=1)
 
 	# remove sequences that are empty now because of weird linker things
 	df['trim_seq_len'] = df.apply(lambda x: len(x.trim_seq), axis=1)
@@ -793,7 +793,7 @@ def trim_bcs(df, t=1, verbose=False):
 	if verbose:
 		n = len(df.index)
 		print('Number of reads after removing truncated sequences: {}'.format(n))
-		
+
 	return df
 
 def flip_reads_x(x):
@@ -803,7 +803,7 @@ def flip_reads_x(x):
 	else:
 		s = x.trim_seq
 	return s
-	
+
 def flip_reads(df, t=1):
 	if t == 1:
 		df['trim_seq'] = df.apply(flip_reads_x, axis=1)
@@ -813,7 +813,7 @@ def flip_reads(df, t=1):
 
 	df.seq = df.trim_seq
 	df.drop('trim_seq', axis=1, inplace=True)
-	
+
 	return df
 
 # plot read lengths after removing the barcode construct
@@ -842,12 +842,12 @@ def filter_on_illumina(df, i_df):
     return df
 
 # remove all combinations of barcodes that don't have enough reads
-# if we're also filtering on Illumina bcs, take all cells that pass the 
+# if we're also filtering on Illumina bcs, take all cells that pass the
 # threshold in either dt or randhex
 def filter_on_read_count(df, read_thresh):
-    
+
     bc_df = get_bc1_matches()
-    
+
     df['bc'] = df.bc3+df.bc2+df.bc1
 
     # if we have a number of reads threshold, filter on that
@@ -856,19 +856,19 @@ def filter_on_read_count(df, read_thresh):
     # temp = temp.loc[temp.bc_counts>read_thresh]
     temp['bc1_partner'] = temp.apply(lambda x: bc_df.loc[bc_df.bc1_dt == x.bc1, 'bc1_randhex'].values[0] \
         if x.bc1 in bc_df.bc1_dt.tolist() else bc_df.loc[bc_df.bc1_randhex == x.bc1, 'bc1_dt'].values[0], \
-        axis=1)        
+        axis=1)
     temp['bc_partner'] = temp.bc3+temp.bc2+temp.bc1_partner
     temp['bc_partner_counts'] = temp.apply(lambda x: temp.loc[temp.bc == x.bc_partner, 'bc_counts'].values[0] \
         if x.bc_partner in temp.bc.tolist() else 0, axis=1)
     temp['total_counts'] = temp.bc_counts + temp.bc_partner_counts
     temp = temp.loc[temp.total_counts>read_thresh]
     valid_bcs = temp.bc.tolist()+temp.bc_partner.tolist()
-    
+
     df = df.loc[df.bc.isin(valid_bcs)]
 
     return df
 
-# process illumina barcodes to add the randhex bc1s to 
+# process illumina barcodes to add the randhex bc1s to
 # the list of valid barcodes as well
 # Returns a df with barcode combinations that are possible
 def process_illumina_bcs(ifile):
@@ -879,12 +879,12 @@ def process_illumina_bcs(ifile):
 	i_df['bc3'] = i_df.bc.str.slice(start=0, stop=8)
 	i_df['bc2'] = i_df.bc.str.slice(start=8, stop=16)
 	i_df['bc1'] = i_df.bc.str.slice(start=16, stop=24)
-	
+
 	bc_df = get_bc1_matches()
 
 	# then merge on dt bc1 with illumina barcodes
 	i_df = i_df.merge(bc_df, how='left', left_on='bc1', right_on='bc1_dt')
-	
+
 	return i_df
 
 
@@ -926,7 +926,7 @@ def main():
 
 	# score linkers in each read
 	if steps['score_linkers']:
-		df = fastq_to_df(fastq)	
+		df = fastq_to_df(fastq)
 		df = find_linkers(df, t=t)
 
 		fname = oprefix+'_seq_linker_alignment_scores.tsv'
@@ -939,19 +939,19 @@ def main():
 
 
 	# TODO - look for dist of occurrences of each linker within each read
-	# we can maybe decrease the search space for each read by truncating 
+	# we can maybe decrease the search space for each read by truncating
 	# the read
-	# align linkers that scored high enough to get position of 
+	# align linkers that scored high enough to get position of
 	# each linker within each read - this step can take a while!
 	if steps['align_linkers'] and not steps['score_linkers']:
 		fname = oprefix+'_seq_linker_alignment_scores.tsv'
 		df = pd.read_csv(fname, sep='\t')
-	if steps['align_linkers']: 
+	if steps['align_linkers']:
 		df = get_linker_alignments(df, t=t, l1_m=3, l2_m=3, verbose=True)
 		fname = oprefix+'_seq_linker_alignments.tsv'
 		df.to_csv(fname, sep='\t', index=False)
 
-	# correct barcodes 
+	# correct barcodes
 	if steps['correct_bcs'] and not steps['align_linkers']:
 		fname = oprefix+'_seq_linker_alignment_scores.tsv'
 		df = pd.read_csv(fname, sep='\t')
@@ -1001,7 +1001,7 @@ def main():
 			i_bcs = process_illumina_bcs(i_file)
 			df = filter_on_illumina(df, i_bcs)
 			plot_umis_v_barcodes(df, oprefix, 'Illumina')
-		# df = filter_on_read_count(df, rc)
+		df = filter_on_read_count(df, rc)
 		fname = oprefix+'_filtered.tsv'
 		df.to_csv(fname, sep='\t', index=False)
 

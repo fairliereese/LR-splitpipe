@@ -184,25 +184,25 @@ def find_linkers(df, t=1):
 def fastq_to_df(fastq):
 	# TODO remove '@'s from read names first next time!
 	# get the sequences from each read
-seqs = []
-read_names = []
-strands = []
-i = 0
-with open(fastq, 'r') as f:
-	while True:
-		read_name = f.readline().strip()
-		read_name = read_name[1:]
-		if len(read_name)==0:
-			break
-		seq = f.readline().strip()
-		strand = f.readline().strip()
-		qual = f.readline()
-		seqs.append(seq)
-		strands.append(strand)
-		read_names.append(read_name)
-		i += 1
-		if i % 1000000==0:
-			print('Processed {} reads'.format(i))
+	seqs = []
+	read_names = []
+	strands = []
+	i = 0
+	with open(fastq, 'r') as f:
+		while True:
+			read_name = f.readline().strip()
+			read_name = read_name[1:]
+			if len(read_name)==0:
+				break
+			seq = f.readline().strip()
+			strand = f.readline().strip()
+			qual = f.readline()
+			seqs.append(seq)
+			strands.append(strand)
+			read_names.append(read_name)
+			i += 1
+			if i % 1000000==0:
+				print('Processed {} reads'.format(i))
 
 	# pack everything into a dataframe
 	df = pd.DataFrame(seqs)

@@ -184,28 +184,29 @@ def find_linkers(df, t=1):
 def fastq_to_df(fastq):
 	# TODO remove '@'s from read names first next time!
 	# get the sequences from each read
-	seqs = []
-	read_names = []
-	strands = []
-	i = 0
-	with open(fastq, 'r') as f:
-		while True:
-			read_name = f.readline().strip()
-			read_name = read_name[1:]
-			if len(read_name)==0:
-				break
-			seq = f.readline().strip()
-			strand = f.readline().strip()
-			qual = f.readline()
-			seqs.append(seq)
-			strands.append(strand)
-			read_names.append(read_name)
-			i += 1
-			if i % 1000000==0:
-				print('Processed {} reads'.format(i))
+seqs = []
+read_names = []
+strands = []
+i = 0
+with open(fastq, 'r') as f:
+	while True:
+		read_name = f.readline().strip()
+		read_name = read_name[1:]
+		if len(read_name)==0:
+			break
+		seq = f.readline().strip()
+		strand = f.readline().strip()
+		qual = f.readline()
+		seqs.append(seq)
+		strands.append(strand)
+		read_names.append(read_name)
+		i += 1
+		if i % 1000000==0:
+			print('Processed {} reads'.format(i))
 
 	# pack everything into a dataframe
 	df = pd.DataFrame(seqs)
+	print(df.head())
 	df.columns = ['seq']
 	df['read_name'] = read_names
 	df['strand'] = strands
@@ -897,7 +898,7 @@ def write_fastq(df, oprefix):
 	df = df[['header', 'seq']]
 
 	# write the fastq
-	fname = oprefix+'.fastq'
+	fname = oprefix+'_demux.fastq'
 	ofile = open(fname, 'w')
 	for ind, entry in df.iterrows():
 		try:

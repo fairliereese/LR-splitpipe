@@ -8,7 +8,7 @@ def get_args():
 	parser.add_argument('-s', dest='samfile',
 		help='SAM file output from Minimap2/TranscriptClean with splitseq '+\
 			 'barcode+UMI information in the read name')
-	parser.add_argument('--merge_primers', dest='merge_primers', 
+	parser.add_argument('--merge_primers', dest='merge_primers',
 		default=False, action='store_true',
 		help='Merge reads that come from the same cell from different priming strategies')
 	parser.add_argument('-o', dest='oprefix',
@@ -19,6 +19,7 @@ def get_args():
 
 def get_bc1_matches():
 	pkg_path = os.path.dirname(__file__)
+	pkg_path = '/'.join(pkg_path.split('/')[:-1])
 	bc_file = pkg_path+'/barcodes/bc_8nt_v2.csv'
 	bc_df = pd.read_csv(bc_file, index_col=0, names=['bc'])
 	bc_df['well'] = [i for i in range(0, 48)]+[i for i in range(0, 48)]
@@ -32,7 +33,7 @@ def get_bc1_matches():
 	return bc_df
 
 def get_read_info(line):
-	''' From a line in a sam file, returns the read name, 
+	''' From a line in a sam file, returns the read name,
 	    barcode, and UMI as formatted by demultiplex.py
 	'''
 	read_bc = line[0]

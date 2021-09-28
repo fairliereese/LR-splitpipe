@@ -36,13 +36,13 @@ def get_read_info(line):
 	''' From a line in a sam file, returns the read name,
 	    barcode, and UMI as formatted by demultiplex.py
 	'''
-	read_bc = line[0]
+	read_bc = line[0] # sam line
 	read_bc = read_bc.split(':')
 	read_name = read_bc[0]
 	bc_umi = read_bc[1]
 	bc_umi = bc_umi.split('_')
-	bc = bc_umi[0]
-	umi =  bc_umi[1]
+	bc = ''.join(bc_umi[0:-1])
+	umi =  bc_umi[-1]
 
 	return read_name, bc, umi
 

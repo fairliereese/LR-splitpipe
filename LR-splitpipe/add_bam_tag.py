@@ -41,7 +41,7 @@ def get_read_info(line):
 	read_name = read_bc[0]
 	bc_umi = read_bc[1]
 	bc_umi = bc_umi.split('_')
-	bc = ''.join(bc_umi[0:-1])
+	bc = ''.join(bc_umi[0:-1][::-1])
 	umi =  bc_umi[-1]
 
 	return read_name, bc, umi
@@ -55,6 +55,7 @@ def main():
 	if merge_primers:
 		bc_df = get_bc1_matches()
 		fname = '{}_merged_primers.sam'.format(oprefix)
+		print(bc_df.head())
 	else:
 		fname = '{}.sam'.format(oprefix)
 

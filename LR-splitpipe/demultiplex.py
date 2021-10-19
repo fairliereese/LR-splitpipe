@@ -206,7 +206,6 @@ def fastq_to_df(fastq):
 
 	# pack everything into a dataframe
 	df = pd.DataFrame(seqs)
-	print(df.head())
 	df.columns = ['seq']
 	df['read_name'] = read_names
 	df['strand'] = strands
@@ -767,7 +766,6 @@ def trim_bcs(df, t=1, verbose=False):
 	rev = df.loc[df.l_dir == '-'].copy(deep=True)
 
 	# where should we start trimming the sequence?
-	# TODO remember that these directions are wrong
 	fwd['trim_start'] = fwd.l1_stop+8
 	rev['trim_start'] = rev.l1_start-8
 	fwd.trim_start = fwd.trim_start.astype('int')
@@ -798,7 +796,6 @@ def trim_bcs(df, t=1, verbose=False):
 	return df
 
 def flip_reads_x(x):
-	# TODO remember that this is the wrong direction (need to verify 11/12/20)
 	if x.l_dir == '+':
 		s = rev_comp(x.trim_seq)
 	else:
@@ -970,9 +967,15 @@ def main():
 
 		edit_dist = 3
 		df = correct_barcodes(df, counts, count_thresh, edit_dist, t=t)
-		fname = oprefix+'_seq_corrected_bcs.tsv'
 
-		# ***TODO probably want to drop nans here.... not sure what's going on***
+		# only keep reads with valid barcodes
+		df['bc'] = df.bc3+df.bc2+df.bc1
+		df = df.loc[df.bc.str.len() == 24]
+
+		n = len(df.index)
+		print('Reads with valid barcodes: {}'.format(n))
+
+		fname = oprefix+'_seq_corrected_bcs.tsv'
 		df.to_csv(fname, sep='\t', index=False)
 
 		# some more qc plots
@@ -1002,7 +1005,12 @@ def main():
 			i_bcs = process_illumina_bcs(i_file)
 			df = filter_on_illumina(df, i_bcs)
 			plot_umis_v_barcodes(df, oprefix, 'Illumina')
-		df = filter_on_read_count(df, rc)
+
+		# only try to filter if we have a valid read count thresh
+		if rc > 0:
+			df = filter_on_read_count(df, rc)
+			n = len(df.index)
+			print('Reads from barcodes w/ > {} reads: {}'.format(rc, n))
 		fname = oprefix+'_filtered.tsv'
 		df.to_csv(fname, sep='\t', index=False)
 

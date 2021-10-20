@@ -891,6 +891,9 @@ def write_fastq(df, oprefix):
 
 	# create the read name header with the bc and umi information
 	df.fillna(value='_', inplace=True)
+	ex_read_name = df.read_name.tolist()[0]
+	if ' ' in ex_read_name:
+		df.read_name = df.read_name.str.split(' ', n=1, expand=True)[0]
 	df['header'] = '@'+df.read_name+':'+df.bc1+'_'+df.bc2+'_'+df.bc3+'_'+df.umi
 	df = df[['header', 'seq']]
 

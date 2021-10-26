@@ -11,6 +11,9 @@ def get_args():
 	parser.add_argument('--merge_primers', dest='merge_primers',
 		default=False, action='store_true',
 		help='Merge reads that come from the same cell from different priming strategies')
+	parser.add_argument('--suffix', dest='suff', default=None,
+		help='Suffix to add to cell barcodes. Useful if merging separate LR-Split-seq experiments '+
+		'that might have overlapping barcodes otherwise.')
 	parser.add_argument('-o', dest='oprefix',
 		help='Output file path/prefix')
 
@@ -50,6 +53,8 @@ def main():
 	args = get_args()
 	samfile = args.samfile
 	oprefix = args.oprefix
+	suff = args.suff
+
 	merge_primers = args.merge_primers
 
 	if merge_primers:
@@ -79,6 +84,10 @@ def main():
 					bc = bc3+bc2+bc1
 
 			line[0] = read_name
+
+			if suff:
+				bc = '{}-{}'.format(bc, suff)
+				
 			cell_tag = 'CB:Z:{}'.format(bc)
 			umi_tag = 'MI:Z:{}'.format(umi)
 			line.append(cell_tag)

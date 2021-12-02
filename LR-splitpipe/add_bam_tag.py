@@ -87,7 +87,7 @@ def main():
 
 			if suff:
 				bc = '{}-{}'.format(bc, suff)
-				
+
 			cell_tag = 'CB:Z:{}'.format(bc)
 			umi_tag = 'MI:Z:{}'.format(umi)
 			line.append(cell_tag)

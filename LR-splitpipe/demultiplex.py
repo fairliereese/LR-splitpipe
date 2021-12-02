@@ -29,6 +29,13 @@ def get_args():
 			 'Default: None')
 	parser.add_argument('-rc', dest='rc', default=500,
 		help='Number of reads/bc to require for filtering')
+	parser.add_argument('--l1_mm', dest='l1_mm', default=3,
+		help='Number of allowable mismatches in linker1')
+	parser.add_argument('--l2_mm', dest='l2_mm', default=3,
+		help='Number of allowable mismatches in linker2')
+	parser.add_argument('--filt_umi', dest='filt_umi', default=False,
+		help='Filter out duplicate UMIs using longest read heuristic')
+
 	# parser.add_argument('-v', dest='verbose', default=False,
 	# 	help='Display ')
 
@@ -866,6 +873,36 @@ def filter_on_read_count(df, read_thresh):
 
     return df
 
+def filter_dupe_umis(df):
+	"""
+	Filters duplicate UMIs such that the longest read is kept
+	Parameters:
+		df (pandas DataFrame): df with sequence / umi info
+	returns:
+		df (pandas DataFrame): df with dupe umis removed
+	"""
+
+	print('Number of reads before filtering dupe UMIs: {}'.format(len(df.index)))
+
+	# calc read length and sort reads from longest to smallest
+	df['read_len']  = df.seq.str.len()
+	df = df.sort_values(by='read_len', ascending=False)
+
+	# get umi len so we can leave incomplete umis alone
+	df['umi_len'] = df.umi.str.len()
+
+	# drop dupe UMI + bc combos for full len umis
+	inds = df.loc[df.umi_len == 10][['umi', 'bc']].drop_duplicates(keep='first').index.tolist()
+	inds += df.loc[df.umi_len != 10].index.tolist()
+	df = df.loc[inds]
+
+	# remove unnecessary columns
+	df.drop(['umi_len', 'read_len'], axis=1, inplace=True)
+
+	print('Number of reads after filtering dupe UMIs: {}'.format(len(df.index)))
+
+	return df
+
 # process illumina barcodes to add the randhex bc1s to
 # the list of valid barcodes as well
 # Returns a df with barcode combinations that are possible
@@ -919,6 +956,9 @@ def main():
 	t = int(args.threads)
 	i_file = args.i_file
 	rc = int(args.rc)
+	l1_mm = args.l1_mm
+	l2_mm = args.l2_mm
+	filt_umi = args.filt_umi
 	steps = check_steps(args.steps)
 
 	# verbose = args.verbose
@@ -948,7 +988,7 @@ def main():
 		fname = oprefix+'_seq_linker_alignment_scores.tsv'
 		df = pd.read_csv(fname, sep='\t')
 	if steps['align_linkers']:
-		df = get_linker_alignments(df, t=t, l1_m=3, l2_m=3, verbose=True)
+		df = get_linker_alignments(df, t=t, l1_m=l1_mm, l2_m=l2_mm, verbose=True)
 		fname = oprefix+'_seq_linker_alignments.tsv'
 		df.to_csv(fname, sep='\t', index=False)
 
@@ -1016,6 +1056,10 @@ def main():
 			print('Reads from barcodes w/ > {} reads: {}'.format(rc, n))
 		fname = oprefix+'_filtered.tsv'
 		df.to_csv(fname, sep='\t', index=False)
+
+	# filter duplicate UMIs out
+	if filt_umi:
+		filter_dupe_umis(df)
 
 	# write the fastq with the cell ID and UMI in the read name
 	if steps['write_fastq'] and not steps['i_filt']:

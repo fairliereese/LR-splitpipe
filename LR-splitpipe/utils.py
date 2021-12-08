@@ -46,7 +46,7 @@ def load_barcodes_set():
 	"""
 	pkg_path = os.path.dirname(__file__)
 	pkg_path = '/'.join(pkg_path.split('/')[:-1])
-	pkg_path = '/Users/fairliereese/Documents/programming/mortazavi_lab/data/211206_lr_splitpipe_speedup/'
+	# pkg_path = '/Users/fairliereese/Documents/programming/mortazavi_lab/data/211206_lr_splitpipe_speedup/'
 
 	with open(pkg_path + '/barcodes/bc_dict_v1.pkl', 'rb') as f:
 		edit_dict_v1 = pickle.load(f)

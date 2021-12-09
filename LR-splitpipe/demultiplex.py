@@ -225,7 +225,7 @@ def get_args():
 	args = parser.parse_args()
 	return args
 
-def main():
+def all():
 	args = get_args()
 	fastq = args.fastq
 	oprefix = args.oprefix
@@ -300,4 +300,4 @@ def main():
 	# 			chunksize=chunk,
 	# 			delete_input=delete_input)
 
-if __name__ == '__main__': main()
+# if __name__ == '__main__': main()

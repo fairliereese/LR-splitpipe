@@ -133,7 +133,7 @@ def process_bcs_function(fnames, oprefix, t,
 ###################################################################################
 def find_bcs():
 	parser = argparse.ArgumentParser()
-
+	parser.add_argument('find_bcs')
 	parser.add_argument('-f', dest='fastq',
 		help='FASTQ file output from Lima with LR-Split-seq reads.')
 	parser.add_argument('-o', dest='oprefix',
@@ -170,6 +170,7 @@ def find_bcs():
 
 def process_bcs():
 	parser = argparse.ArgumentParser()
+	parser.add_argument('process_bcs')
 
 	parser.add_argument('-f', dest='fnames',
 		help='Comma-separated list of files from "find_bcs" step with suffix "seq_linker_alignments.tsv".')

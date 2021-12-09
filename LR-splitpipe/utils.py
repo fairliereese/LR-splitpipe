@@ -149,7 +149,7 @@ def fastq_to_df(fname, oprefix, verbose=1):
 	seqs = []
 	read_names = []
 	strands = []
-	i = 0
+	i = 1
 	ofile = '{}_table.tsv'.format(oprefix)
 	with open(fname, 'r') as f:
 		while True:
@@ -166,7 +166,7 @@ def fastq_to_df(fname, oprefix, verbose=1):
 
 			# print out notification and write to file
 			chunksize = 100000
-			if i % chunksize == 0 and i != 0 :
+			if i % chunksize == 0 and i != 1 :
 				if verbose == 2:
 					print('Processed {} reads'.format(i))
 
@@ -188,7 +188,14 @@ def fastq_to_df(fname, oprefix, verbose=1):
 					strands = []
 					seqs = []
 			i += 1
-	df.to_csv(ofile, sep='\t', header=None, index=False, mode='a')
+
+	# cleanup
+	if len(seqs) > 0:
+		df = pd.DataFrame(seqs)
+		df.columns = ['seq']
+		df['read_name'] = read_names
+		df['strand'] = strands
+		df.to_csv(ofile, sep='\t', header=None, index=False, mode='a')
 
 	return ofile
 

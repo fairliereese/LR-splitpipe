@@ -494,7 +494,7 @@ def get_perfect_bc_counts(fnames, verbose=1):
 	# load in just bcs from everything
 	if type(fnames) == list:
 		df = pd.DataFrame()
-		for i, fname in fnames:
+		for i, fname in enumerate(fnames):
 			   temp = pd.read_csv(fname, sep='\t', usecols=[15,16,17,18])
 			   df = pd.concat([df, temp])
 	else:
@@ -524,7 +524,7 @@ def get_perfect_bc_counts(fnames, verbose=1):
 
 	return df, counts, count_threshold
 
-def correct_barcodes(fname, oprefix,
+def correct_barcodes(fnames, oprefix,
 					 counts, count_thresh,
 					 bc_edit_dist=3, t=1,
 					 chunksize=10**5,
@@ -535,7 +535,7 @@ def correct_barcodes(fname, oprefix,
 	present in the dataset and on a maximum edit distance.
 
 	Parameters:
-		fname (str): File to process
+		fnames (list of str): Files to process
 		oprefix (str): Where to save output
 		counts (pandas DataFrame): Output from get_perfect_bc_counts
 			with number of reads observed for each barcode
@@ -559,35 +559,41 @@ def correct_barcodes(fname, oprefix,
 	i = 0
 	n_corrected_bcs = 0
 	ofile = '{}_seq_corrected_bcs.tsv'.format(oprefix)
-	for df in pd.read_csv(fname, chunksize=chunksize, sep='\t'):
 
-		if t == 1:
-			temp = df.parallel_apply(correct_bcs_x,
-					args=(counts, count_thresh, bc_edit_dist, bc1_dict, bc2_dict, bc3_dict),
-					axis=1, result_type='expand')
-		else:
-			temp = df.apply(lambda x: correct_bcs_x(x, counts, count_thresh,
-						bc_edit_dist, bc1_dict, bc2_dict, bc3_dict),
+	# load in just bcs from everything
+	if type(fnames) != list:
+		fnames = [fnames]
+
+	for file_ind, fname in enumerate(fnames):
+		for df in pd.read_csv(fname, chunksize=chunksize, sep='\t'):
+
+			if t == 1:
+				temp = df.parallel_apply(correct_bcs_x,
+						args=(counts, count_thresh, bc_edit_dist, bc1_dict, bc2_dict, bc3_dict),
 						axis=1, result_type='expand')
-			pandarallel.initialize(nb_workers=t, verbose=1)
+			else:
+				temp = df.apply(lambda x: correct_bcs_x(x, counts, count_thresh,
+							bc_edit_dist, bc1_dict, bc2_dict, bc3_dict),
+							axis=1, result_type='expand')
+				pandarallel.initialize(nb_workers=t, verbose=1)
 
-		# replace old bcs with corrected bcs and remove bcs
-		# that were not corrected
-		df.drop(['bc1', 'bc2', 'bc3'], axis=1, inplace=True)
-		df = pd.concat([df, temp], axis=1)
-		df.dropna(subset=['bc1', 'bc2', 'bc3'],
-				  how='any', axis=0, inplace=True)
+			# replace old bcs with corrected bcs and remove bcsq
+			# that were not corrected
+			df.drop(['bc1', 'bc2', 'bc3'], axis=1, inplace=True)
+			df = pd.concat([df, temp], axis=1)
+			df.dropna(subset=['bc1', 'bc2', 'bc3'],
+					  how='any', axis=0, inplace=True)
 
-		# first write
-		if i == 0:
-			df.to_csv(ofile, sep='\t', index=False)
-		else:
-			df.to_csv(ofile, sep='\t', header=None, index=False, mode='a')
+			# first write
+			if i == 0 and file_ind == 0:
+				df.to_csv(ofile, sep='\t', index=False)
+			else:
+				df.to_csv(ofile, sep='\t', header=None, index=False, mode='a')
 
-		i += chunksize
-		n_corrected_bcs += len(df.index)
-		if verbose == 2:
-			print('Corrected bcs for {} reads'.format(i))
+			i += chunksize
+			n_corrected_bcs += len(df.index)
+			if verbose == 2:
+				print('Corrected bcs for {} reads'.format(i))
 
 	if verbose > 0:
 		print('Corrected barcodes for {} reads'.format(n_corrected_bcs))

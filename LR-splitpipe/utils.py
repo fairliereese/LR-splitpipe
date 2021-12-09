@@ -467,13 +467,13 @@ def get_bcs_umis(fname, oprefix, t=1,
 
 	return ofile
 
-def get_perfect_bc_counts(fname, verbose=1):
+def get_perfect_bc_counts(fnames, verbose=1):
 	"""
 	Count how many reads with valid barcodes within edit
 	distance 3 there are. Adapted from Parse biosciences.
 
 	Parameters:
-		fname (str): File to process
+		fnames (list of str): Files to process
 		verbose (int): How much output to show
 			0: none
 			1: only QC statistics
@@ -492,7 +492,14 @@ def get_perfect_bc_counts(fname, verbose=1):
 	bc_8nt_bc3, bc_8nt_bc2, bc_8nt_bc1 = load_barcodes_set()
 
 	# load in just bcs from everything
-	df = pd.read_csv(fname, sep='\t', usecols=[15,16,17,18])
+	if type(fnames) == list:
+		df = pd.DataFrame()
+		for i, fname in fnames:
+			   temp = pd.read_csv(fname, sep='\t', usecols=[15,16,17,18])
+			   df = pd.concat([df, temp])
+	else:
+		fname = fnames
+		df = pd.read_csv(fname, sep='\t', usecols=[15,16,17,18])
 
 	df['bc1_valid'] = df.bc1.isin(list(bc_8nt_bc1))
 	df['bc2_valid'] = df.bc2.isin(list(bc_8nt_bc2))

@@ -17,6 +17,50 @@ from plotting import *
 ###################################################################################
 ############################ Actual function calls ################################
 ###################################################################################
+def score(fastq, oprefix, t,
+					  chunksize, verbosity,
+					  delete_input):
+	"""
+	Runs the steps of the pipeline that can be done in parallel including
+		* processing the fastq into a dataframe
+		* linker scoring and locating
+		* bc calling
+
+	Parameters:
+		fastq (str): File to process
+		oprefix (str): Where to save output
+		verbosity (int): How much output to show
+			0: none
+			1: only QC statistics
+			2: QC stats + progress
+		t (int): Number of threads to run on
+		keep_dupes (bool):
+		chunksize (int): Number of lines to process at a time
+		delete_input (bool): Whether or not to delete input file
+			after execution
+
+	Returns:
+		fname (str): Last file that is created
+	"""
+
+	# portion of the pipeline that can be run in parallel
+	fname = fastq_to_df(fastq,
+				oprefix,
+				verbose=verbosity)
+
+	fname = score_linkers(fname, oprefix,
+					 t=t,
+					 verbose=verbosity,
+					 chunksize=chunksize,
+					 delete_input=delete_input)
+
+	# make some plots
+	df = pd.read_csv(fname, sep='\t', usecols=[3,4,5,6])
+	df.reset_index(inplace=True)
+	plot_linker_scores(df, oprefix)
+	plot_linker_heatmap(df, oprefix, how='integer')
+	plot_linker_heatmap(df, oprefix, how='proportion')
+
 def find_bcs(fastq, oprefix, t,
 					  l1_mm, l2_mm,
 					  chunksize, verbosity,
@@ -139,76 +183,6 @@ def process_bcs(fnames, oprefix, t,
 ###################################################################################
 ############################# Argparsing functions ################################
 ###################################################################################
-# def find_bcs():
-# 	parser = argparse.ArgumentParser()
-# 	parser.add_argument('find_bcs')
-# 	parser.add_argument('-f', dest='fastq',
-# 		help='FASTQ file output from Lima with LR-Split-seq reads.')
-# 	parser.add_argument('-o', dest='oprefix',
-# 		help='Output file path/prefix')
-# 	parser.add_argument('-t', dest='threads',
-# 		help='Number of threads to run on (multithreading is recommended)')
-# 	parser.add_argument('--l1_mm', dest='l1_mm', default=3,
-# 		help='Number of allowable mismatches in linker1')
-# 	parser.add_argument('--l2_mm', dest='l2_mm', default=3,
-# 		help='Number of allowable mismatches in linker2')
-# 	parser.add_argument('--chunksize', dest='chunksize', default=10**5,
-# 		help='Number of lines to read in at any given time')
-# 	parser.add_argument('--verbosity', dest='verbosity', default=1,
-# 		help='Verbosity setting. Higher number = more messages')
-# 	parser.add_argument('--delete_input', dest='delete_input',
-# 		help='Delete temporary files', default=False)
-#
-# 	args = parser.parse_args()
-#
-#
-# 	fastq = args.fastq
-# 	oprefix = args.oprefix
-# 	t = int(args.threads)
-# 	l1_mm = int(args.l1_mm)
-# 	l2_mm = int(args.l2_mm)
-# 	v = int(args.verbosity)
-# 	delete_input = args.delete_input
-# 	chunk = int(args.chunksize)
-
-	# # run just the bc finding
-	# find_bcs_function(fastq, oprefix, t,
-	# 					  l1_mm, l2_mm,
-	# 					  chunksize, verbosity,
-	# 					  delete_input)
-
-# def process_bcs():
-	# parser = argparse.ArgumentParser()
-	# parser.add_argument('process_bcs')
-	#
-	# parser.add_argument('-f', dest='fnames',
-	# 	help='Comma-separated list of files from "find_bcs" step with suffix "seq_linker_alignments.tsv".')
-	# parser.add_argument('-o', dest='oprefix',
-	# 	help='Output file path/prefix')
-	# parser.add_argument('-t', dest='threads',
-	# 	help='Number of threads to run on (multithreading is recommended)')
-	# parser.add_argument('--chunksize', dest='chunksize', default=10**5,
-	# 	help='Number of lines to read in at any given time')
-	# parser.add_argument('--verbosity', dest='verbosity', default=1,
-	# 	help='Verbosity setting. Higher number = more messages')
-	# parser.add_argument('--delete_input', dest='delete_input',
-	# 	help='Delete temporary files', default=False)
-	#
-	# args = parser.parse_args()
-	#
-	# fnames = args.fnames
-	# fnames = fnames.split(',')
-	#
-	# oprefix = args.oprefix
-	# t = int(args.threads)
-	# v = int(args.verbosity)
-	# delete_input = args.delete_input
-	# chunk = int(args.chunksize)
-
-	# fname = process_bcs_function(fname, oprefix, t,
-	# 							 chunksize, v,
-	# 							 delete_input)
-
 def get_args():
 	parser = argparse.ArgumentParser()
 	subparsers = parser.add_subparsers(dest='mode')
@@ -232,6 +206,22 @@ def get_args():
 	parser_all.add_argument('--delete_input', dest='delete_input',
 		help='Delete temporary files', default=False)
 	# parser_all.add_argument('--filt_umi', dest='filt_umi', default=False,
+	# 	help='Filter out duplicate UMIs using longest read heuristic')
+
+	parser_score_linkers = subparsers.add_parser('score_linkers', help='Run score_linkers step only')
+	parser_score_linkers.add_argument('-f', dest='fastq',
+		help='FASTQ file output from Lima with LR-Split-seq reads.')
+	parser_score_linkers.add_argument('-o', dest='oprefix',
+		help='Output file path/prefix')
+	parser_score_linkers.add_argument('-t', dest='threads',
+		help='Number of threads to run on (multithreading is recommended)')
+	parser_score_linkers.add_argument('--chunksize', dest='chunksize', default=10**5,
+		help='Number of lines to read in at any given time')
+	parser_score_linkers.add_argument('--verbosity', dest='verbosity', default=1,
+		help='Verbosity setting. Higher number = more messages')
+	parser_score_linkers.add_argument('--delete_input', dest='delete_input',
+		help='Delete temporary files', default=False)
+	# parser_find_bcs.add_argument('--filt_umi', dest='filt_umi', default=False,
 	# 	help='Filter out duplicate UMIs using longest read heuristic')
 
 	# find bcs
@@ -284,10 +274,11 @@ def main():
 	delete_input = args.delete_input
 	chunksize = int(args.chunksize)
 
-	if mode == 'all' or mode == 'find_bcs':
+	if mode == 'all' or mode == 'find_bcs' or mode == 'score_linkers':
 		fastq = args.fastq
-		l1_mm = int(args.l1_mm)
-		l2_mm = int(args.l2_mm)
+		if mode == 'all' or mode == 'find_bcs':
+			l1_mm = int(args.l1_mm)
+			l2_mm = int(args.l2_mm)
 	elif mode == 'process_bcs':
 		fnames = args.fnames
 		fnames = fnames.split(',')
@@ -308,5 +299,9 @@ def main():
 									 chunksize, v,
 									 delete_input)
 
+	elif mode == 'score_linkers':
+		score(fastq, oprefix, t,
+						  chunksize, v,
+						  delete_input)
 
 if __name__ == '__main__': main()

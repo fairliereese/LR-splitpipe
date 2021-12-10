@@ -221,7 +221,6 @@ def get_args():
 	parser_score_linkers.add_argument('--verbosity', dest='verbosity', default=1,
 		help='Verbosity setting. Higher number = more messages')
 	parser_score_linkers.add_argument('--delete_input', dest='delete_input',
-		action='store_true',
 		action='store_true', help='Delete temporary files', default=False)
 	# parser_find_bcs.add_argument('--filt_umi', dest='filt_umi', default=False,
 	# 	help='Filter out duplicate UMIs using longest read heuristic')

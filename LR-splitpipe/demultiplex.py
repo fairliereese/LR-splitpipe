@@ -204,6 +204,7 @@ def get_args():
 	parser_all.add_argument('--verbosity', dest='verbosity', default=1,
 		help='Verbosity setting. Higher number = more messages')
 	parser_all.add_argument('--delete_input', dest='delete_input',
+		action='store_true',
 		help='Delete temporary files', default=False)
 	# parser_all.add_argument('--filt_umi', dest='filt_umi', default=False,
 	# 	help='Filter out duplicate UMIs using longest read heuristic')
@@ -220,7 +221,8 @@ def get_args():
 	parser_score_linkers.add_argument('--verbosity', dest='verbosity', default=1,
 		help='Verbosity setting. Higher number = more messages')
 	parser_score_linkers.add_argument('--delete_input', dest='delete_input',
-		help='Delete temporary files', default=False)
+		action='store_true',
+		action='store_true', help='Delete temporary files', default=False)
 	# parser_find_bcs.add_argument('--filt_umi', dest='filt_umi', default=False,
 	# 	help='Filter out duplicate UMIs using longest read heuristic')
 
@@ -241,6 +243,7 @@ def get_args():
 	parser_find_bcs.add_argument('--verbosity', dest='verbosity', default=1,
 		help='Verbosity setting. Higher number = more messages')
 	parser_find_bcs.add_argument('--delete_input', dest='delete_input',
+		action='store_true',
 		help='Delete temporary files', default=False)
 	# parser_find_bcs.add_argument('--filt_umi', dest='filt_umi', default=False,
 	# 	help='Filter out duplicate UMIs using longest read heuristic')
@@ -258,6 +261,7 @@ def get_args():
 	parser_process_bcs.add_argument('--verbosity', dest='verbosity', default=1,
 		help='Verbosity setting. Higher number = more messages')
 	parser_process_bcs.add_argument('--delete_input', dest='delete_input',
+		action='store_true',
 		help='Delete temporary files', default=False)
 	# parser_process_bcs.add_argument('--filt_umi', dest='filt_umi', default=False,
 	# 	help='Filter out duplicate UMIs using longest read heuristic')

@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
 import math
+import numpy as np
 
 
 def plot_hist(x, **kwargs):

@@ -782,6 +782,9 @@ def filter_dupe_umis(fname, oprefix, verbose=True,
 
 		i += chunksize
 
+	# remove old file
+	os.remove(fname)
+
 	# read whole thing in
 	df = pd.read_csv(ofile, sep='\t')
 	if verbose > 0:
@@ -818,9 +821,6 @@ def filter_dupe_umis(fname, oprefix, verbose=True,
 
 	if verbose > 0:
 		print('Number of reads after filtering dupe UMIs: {}'.format(n_dedup))
-
-	# remove len tracking info
-	os.remove(fname)
 
 	return ofile
 
@@ -874,6 +874,10 @@ def write_fastq(fname, oprefix,
 			ofile.write(''.join(['5' for i in range(len(entry.seq))])+'\n')
 
 	ofile.close()
+
+	# remove old file
+	os.remove(fname)
+
 	return ofile
 
 ###################################################################################

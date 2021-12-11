@@ -176,6 +176,17 @@ def process_bcs(fnames, oprefix, t,
 				chunksize=chunksize,
 				delete_input=delete_input)
 
+	# plot read lengths as they are after trimming
+	df = pd.read_csv('{}_seq_umi_len.tsv'.format(oprefix), sep='\t',
+		usecols=[3,4,5,9])
+	plot_read_length(df, oprefix)
+
+	# for UMI plots, only consider reads with FL UMIs
+	kind = 'Post-correction'
+	df = df.loc[df.umi_len == 10]
+	temp = plot_knee_plot(df, oprefix, kind)
+	plot_sequencing_sat(df, oprefix, kind)
+
 	fname = write_fastq(fname, oprefix,
 				chunksize=chunksize,
 				delete_input=delete_input)

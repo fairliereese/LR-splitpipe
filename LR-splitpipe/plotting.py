@@ -17,17 +17,17 @@ def plot_hist(x, **kwargs):
 
 def plot_linker_scores(df, oprefix):
 
-    val_vars = ['l1_score', 'l2_score', 'l1_rc_score', 'l2_rc_score']
-    cols = ['index'] + val_vars
-    temp = df[cols].melt(id_vars='index', value_vars=val_vars)
+	val_vars = ['l1_score', 'l2_score', 'l1_rc_score', 'l2_rc_score']
+	cols = ['index'] + val_vars
+	temp = df[cols].melt(id_vars='index', value_vars=val_vars)
 
-    g = sns.FacetGrid(temp, col='variable')
-    g.map(plot_hist, 'value')
+	g = sns.FacetGrid(temp, col='variable')
+	g.map(plot_hist, 'value')
 
-    fname = oprefix+'_linker_score_dists.png'
-    plt.savefig(fname)
+	fname = oprefix+'_linker_score_dists.png'
+	plt.savefig(fname)
 
-    plt.clf()
+	plt.clf()
 
 # plot heatmap of number of reads recovered with different linker
 # mismatch allowances
@@ -75,4 +75,98 @@ def plot_linker_heatmap(df, oprefix, how='integer'):
 	fig = plt.gcf()
 	fig.set_size_inches(8, 8)
 	plt.savefig(fname, bbox_inches='tight')
+	plt.clf()
+
+def plot_read_length(df, oprefix):
+	"""
+	Plot read length distributions after trimming bc / linker
+	construct from reads.
+
+	Parameters:
+		df (pandas DataFrame): DataFrame from file with suffix
+			"_seq_umi_len.tsv" with cols for read length,
+			umi length, bc, and umi
+		oprefix (str): Output file prefix
+	"""
+	ax = sns.displot(data=df, x='read_len', color='#CF91A3')
+	ax.set(xlabel='Read length', ylabel='Number of reads')
+	fname = '{}_read_length_dist.png'.format(oprefix)
+	# plt.xlim((0,10000))
+	plt.xlim((0,4000))
+	plt.savefig(fname)
+	plt.clf()
+
+def plot_knee_plot(df, oprefix, kind):
+	bc_cols = ['bc']
+	# only want unique bc/umi combos
+	temp = df[bc_cols+['umi']].drop_duplicates()
+	# get the number of unique bc/umi combos
+	temp = temp[bc_cols+['umi']].groupby(bc_cols).count()
+	temp.reset_index(inplace=True)
+	temp.rename({'umi':'counts'}, axis=1, inplace=True)
+	temp.sort_values(by='counts', ascending=False, inplace=True)
+	# plot
+	counts = temp['counts'].tolist()
+	plt.plot(range(len(counts)),
+			counts,
+			color='lightgray',
+			linewidth=2)
+	ax = plt.gca()
+	ax.set_xscale('log')
+	ax.set_xlabel('Ranked cells by # UMIs (logscale)')
+	ax.set_ylabel('# UMIs (logscale)')
+	ax.set_title(kind)
+	if kind == 'Pre-correction':
+		kind = 'pre_correction'
+	elif kind == 'Post-correction':
+		kind = 'post_correction'
+	elif kind == 'Illumina':
+		kind = 'illumina'
+	plt.tight_layout()
+	fname = '{}_{}_knee_plot.png'.format(oprefix, kind)
+	plt.savefig(fname)
+	plt.clf()
+	return temp
+
+def plot_sequencing_sat(df, oprefix, kind):
+	bc_cols = ['bc']
+	# get the number of reads per barcode
+	temp1 = df[bc_cols+['umi']].groupby(bc_cols).count()
+	temp1.reset_index(inplace=True)
+	temp1.rename({'umi':'reads'}, axis=1, inplace=True)
+	temp1.sort_values(by='reads', ascending=False, inplace=True)
+	# get the number of unique umis per barcode
+	temp2 = df[bc_cols+['umi']].drop_duplicates()
+	temp2 = temp2[bc_cols+['umi']].groupby(bc_cols).count()
+	temp2.reset_index(inplace=True)
+	temp2.rename({'umi':'umis'}, axis=1, inplace=True)
+	temp2.sort_values(by='umis', ascending=False, inplace=True)
+	# merge on barcode
+	temp = temp1.merge(temp2, on=bc_cols)
+	bins = [i for i in range(0, temp.reads.max(), 1000)]
+	temp_reads = temp.reads.values.tolist()
+	temp_bins = np.digitize(temp_reads, bins)
+	temp['bin'] = temp_bins
+	bins.append(temp.reads.max())
+	bin_dict = dict([(bin, bin_num) for bin, bin_num in zip([i for i in range(1,len(bins))], bins)])
+	temp['bin_total'] = temp['bin'].map(temp['bin'].value_counts())
+	temp['bin_reads'] = temp.bin.map(bin_dict)
+	# groupby the bin and get the median of number of umis
+	temp = temp[['bin_total', 'bin_reads', 'umis']].groupby(['bin_total', 'bin_reads']).median()
+	temp.reset_index(inplace=True)
+	temp.rename({'umis': 'median_umis'}, axis=1, inplace=True)
+	temp.sort_values(by='bin_reads', inplace=True)
+	# plot de plot
+	ax = sns.lineplot(x='bin_reads', y='median_umis', marker='o', data=temp)
+	ax.set_ylabel('Median UMIs per Cell')
+	ax.set_xlabel('Sequencing Reads per Cell')
+	ax.set_title(kind)
+	plt.draw()
+	plt.tight_layout()
+	if kind == 'Pre-correction':
+		kind = 'pre_correction'
+	elif kind == 'Post-correction':
+		kind = 'post_correction'
+	fname = '{}_{}_sequencing_saturation.png'.format(oprefix, kind)
+	plt.savefig(fname)
 	plt.clf()

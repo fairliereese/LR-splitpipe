@@ -148,17 +148,6 @@ def process_bcs(fnames, oprefix, t,
 		delete_input (bool): Whether or not to delete input file
 			after execution
 	"""
-	
-	new_fnames = []
-	for fname in fnames:
-		new_fname = get_bcs_umis(fname, oprefix,
-					 t=t,
-					 verbose=verbosity,
-					 chunksize=chunksize,
-					 delete_input=delete_input)
-		new_fnames.append(new_fname)
-	fnames = new_fnames
-
 	_, counts, count_thresh = get_perfect_bc_counts(fnames, verbose=verbosity)
 
 	fname = correct_barcodes(fnames, oprefix,

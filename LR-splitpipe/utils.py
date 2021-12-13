@@ -598,9 +598,9 @@ def correct_barcodes(fnames, oprefix,
 	if verbose > 0:
 		print('Corrected barcodes for {} reads'.format(n_corrected_bcs))
 
-	# delete input file
-	if delete_input:
-		os.remove(fname)
+	# # delete input file
+	# if delete_input:
+	# 	os.remove(fname)
 
 	return ofile
 

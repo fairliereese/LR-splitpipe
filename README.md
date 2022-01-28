@@ -4,13 +4,13 @@ LR-splitpipe is a pipeline designed for demultiplexing, debarcoding, and prepari
 
 ## Demultiplexing reads
 
-<img align="left" width="450" src="demux_pipeline.png">
+<img width="450" src="demux_pipeline.png">
 
 
 To demultiplex reads for their Split-seq barcodes, use `demultiplex.py`.
 
 ```
-Usage: python demultiplex.py {all, score_linkers, find_bcs, process_bcs} [options]
+Usage: python LR-splitpipe/demultiplex.py {all, score_linkers, find_bcs, process_bcs} [options]
 
 Subcommands:
   all                  Run all steps of demultiplexing
@@ -68,20 +68,26 @@ Filter out reads with duplicate UMIs per barcode, keeping the longest read.
 Take the barcode/UMI for each read and append it to the read name of each read. Output the trimmed reads labeled by their barcodes to a fastq file.
 
 
-
 ## Adding cell barcode as BAM tag
 
 After running the demultiplexer, reads should be mapped and converted to a SAM file. In this file format, the barcode, which is in the read header in fastq format, can be moved to a cell barcode (CB:Z:NNNNN...) tag as part of the SAM file. This is useful to be able to run [TALON](https://github.com/mortazavilab/TALON) on the single-cell data down the line. To do this, run `add_bam_tag.py`.
 
-Note: It is recommended to use the `--merge_primers` option. This option was only included to compare the random hexamer and oligo-dT primed reads for the pilot experiment.
+Note: It is recommended to use the `--merge_primers` option. If you *don't* use this option, oligodT primed and random hexamer primed reads from the same cells won't be merged
 
 ```
-Usage: python LR-splitpipe/add_bam_tag.py [options]
+Usage: python LR-splitpipe/add_bam_tag.py
 
-  -h, --help       show this help message and exit
-  -s SAMFILE       SAM file output from Minimap2/TranscriptClean with splitseq
-                   barcode+UMI information in the read name
-  --merge_primers  Merge reads that come from the same cell from different
-                   priming strategies
-  -o OPREFIX       Output file path/prefix
+Options:
+  -s                   SAM file with Split-seq barcode+UMI information in
+                         the read name
+  --merge_primers      Merge reads that come from the same cell from different
+                         priming strategies
+  --suffix             Suffix to add to cell barcodes. Useful if merging
+                         separate LR-Split-seq experiments that might have
+                         overlapping barcodes otherwise
+  -o                   Output file path/prefix
 ```
+
+## Citing this software
+
+Please cite [our publication](doi.org/10.1186/s13059-021-02505-w) and / or the [Zenodo DOI]() for the release you used!

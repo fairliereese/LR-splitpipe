@@ -1,1 +1,0 @@
-fastq = '/dfs6/pub/freese/mortazavi_lab/data/200908_splitseq/fl.fastq'

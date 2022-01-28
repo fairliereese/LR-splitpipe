@@ -1,6 +1,6 @@
 # LR-splitpipe
 
-LR-splitpipe is a pipeline designed for demultiplexing, debarcoding, and preparing LR-Split-seq data. 
+LR-splitpipe is a pipeline designed for demultiplexing, debarcoding, and preparing LR-Split-seq data.
 
 ## Demultiplexing reads
 
@@ -9,64 +9,65 @@ LR-splitpipe is a pipeline designed for demultiplexing, debarcoding, and prepari
 
 To demultiplex reads for their Split-seq barcodes, use `demultiplex.py`.
 
-
 ```
-Usage: python LR-splitpipe/demultiplex.py [options]
+Usage: python demultiplex.py {all, score_linkers, find_bcs, process_bcs} [options]
 
-optional arguments:
-  -h, --help      show this help message and exit
-  -f FASTQ        FASTQ file output from Lima with LR-Split-seq reads.
-  -steps STEPS    Comma separated list of steps to perform. Default is all.
-                  Options include: score_linkers, align_linkers, correct_bcs,
-                  trim, i_filt, write_fastq
-  -o OPREFIX      Output file path/prefix
-  -t THREADS      Number of threads to run on (multithreading is recommended)
-  -i_file I_FILE  Barcodes from Illumina to filter PacBio barcodes on.
-                  Default: None
+Subcommands:
+  all                  Run all steps of demultiplexing
+  score_linkers        Run steps through scoring the linkers (step 1)
+                       and generate QC plots based on scored linkers
+  find_bcs             Run all steps through finding the barcodes (steps 1-3)
+  process_bcs          Run steps after finding barcodes (steps 4-6)
+
+Options:
+  -f                   FASTQ file output from IsoSeq Lima with LR-Split-seq reads
+  -o                   Output file path / prefix
+  -t                   Number of threads to run on (multithreading is recommended)
+  --l1_mm              Number of allowable mismatches in linker1
+                        Default: 3
+  --l2_mm              Number of allowable mismatches in linker2
+                        Default: 3
+  --chunksize          Number of lines to read in / process at a time
+                        Default: 10**5
+  --verbosity          Verbosity setting.
+                         0: No output
+                         1: QC statistics
+                         2: QC statistics + progress
+  --delete_input       Flag to delete temporary files (recommended!)
 ```
 
 ### Demultiplexing steps:
 
-Each step requires the prior step have been run and output from that step has been generated and is still there!
-
 #### 1. Score linkers
 
-First, LR-splitpipe uses alignment to find reads that have linkers in them, which are the static regions that connect each of the combinatorial barcodes. Reads that have fewer than 4 errors in each linker will then be used to find barcodes. 
-
-`score_linkers` option for the `-steps` argument.
+First, LR-splitpipe uses alignment to find reads that have linkers in them, which are the static regions that connect each of the combinatorial barcodes. Reads that have fewer than 4 errors in each linker will then be used to find barcodes.
 
 #### 2. Align linkers
 
-Using the reads that had valid linkers found in them, determine the location in the read of each linker. 
-
-`align_linkers` option for the `-steps` argument.
-
+Using the reads that had valid linkers found in them, determine the location in the read of each linker.
 Note: This step typically takes the longest! Parallelization will help with this!
 
-#### 3. Find and correct barcodes
+#### 3. Find barcodes
 
-With the locations of the linkers from step 2, extract the barcodes from each read. Correct barcodes to those that are within edit distance of 3 of the list of possible Split-seq barcodes. This step uses code and assets (barcodes and barcodes within edit distance 3) from the original [Parse Biosciences](https://www.parsebiosciences.com/) Split-seq demultiplexing code, which is designed for short reads.
+With the locations of the linkers from step 2, extract the barcodes from each read.
 
-`correct_bcs` option for the `-steps` argument.
+#### 4. Correct barcodes
 
-#### 4. Trim barcodes
+Correct barcodes to those that are within edit distance of 3 of the list of possible Split-seq barcodes. This step uses code and assets (barcodes and barcodes within edit distance 3) from the original [Parse Biosciences](https://www.parsebiosciences.com/) Split-seq demultiplexing code, which is designed for short reads.
 
-After recording the barcode and UMI for each read, trim the construct off from the sequence as this part will mess up mapping. 
+#### 5. Trim barcodes
 
-`trim_bcs` option for the `-steps` argument.
+After recording the barcode and UMI for each read, trim the construct off from the sequence as this part will mess up mapping.
 
-#### 5. Optional filtering
+#### 6. Filter out duplicate UMIs
 
-If a corresponding short-read Split-seq experiment has been performed, barcodes that pass the UMI/cell cutoff in that experiment can be used to limit the corresponding barcodes in the long-read experiment. The barcodes should be given in a text file where each line corresponds to one 24nt long barcode.
+Filter out reads with duplicate UMIs per barcode, keeping the longest read.
 
-`i_filt` option for the `-steps` argument.
-`i_file` to specify the short-read barcodes file.
-
-#### 6. Write to fastq
+#### 7. Write to fastq
 
 Take the barcode/UMI for each read and append it to the read name of each read. Output the trimmed reads labeled by their barcodes to a fastq file.
 
-`write_fastq` option for the `-steps` argument.
+
 
 ## Adding cell barcode as BAM tag
 

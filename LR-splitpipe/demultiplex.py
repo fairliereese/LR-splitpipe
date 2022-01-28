@@ -210,12 +210,15 @@ def get_args():
 	parser_all.add_argument('--l2_mm', dest='l2_mm', default=3,
 		help='Number of allowable mismatches in linker2')
 	parser_all.add_argument('--chunksize', dest='chunksize', default=10**5,
-		help='Number of lines to read in at any given time')
+		help='Number of lines to read in / process at a time')
 	parser_all.add_argument('--verbosity', dest='verbosity', default=1,
-		help='Verbosity setting. Higher number = more messages')
+		help="""Verbosity setting.
+			    0: No output
+				1: QC statistics
+				2: QC statistics + progress""")
 	parser_all.add_argument('--delete_input', dest='delete_input',
 		action='store_true',
-		help='Delete temporary files', default=False)
+		help='Delete temporary files (recommended!)', default=False)
 	# parser_all.add_argument('--filt_umi', dest='filt_umi', default=False,
 	# 	help='Filter out duplicate UMIs using longest read heuristic')
 

@@ -1,3 +1,9 @@
+*fastq
+
+*pycache*
+
+*__ipynb*
+*checkpoint*
 test/
 testing/*pycache*
 *ipynb_checkpoints*

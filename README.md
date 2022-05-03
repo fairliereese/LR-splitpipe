@@ -1,5 +1,7 @@
 # LR-splitpipe
 
+[![DOI](https://zenodo.org/badge/313807619.svg)](https://zenodo.org/badge/latestdoi/313807619)
+
 LR-splitpipe is a pipeline designed for demultiplexing, debarcoding, and preparing LR-Split-seq data.
 
 ## Demultiplexing reads

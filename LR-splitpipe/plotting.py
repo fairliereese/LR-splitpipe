@@ -6,29 +6,33 @@ import numpy as np
 
 
 def plot_hist(x, **kwargs):
+	ax = sns.histplot(x, binwidth=1)
+
+def plot_mm_lines(x, **kwargs):
+	col = x.unique().tolist()[0]
 	# linker 1
-	if x.max() == 22:
+	if 'l1' in col:
 		mismatch_lines = [22, 21, 20, 19]
 	# linker 2
-	elif x.max() == 30:
+	elif 'l2' in col:
 		mismatch_lines = [30, 29, 28, 27]
-	ax = sns.histplot(x, binwidth=1)
 	for l in mismatch_lines:
 		plt.axvline(l, color='k', linestyle='-', linewidth=1)
 
 def plot_linker_scores(df, oprefix):
 
-	val_vars = ['l1_score', 'l2_score', 'l1_rc_score', 'l2_rc_score']
-	cols = ['index'] + val_vars
-	temp = df[cols].melt(id_vars='index', value_vars=val_vars)
+val_vars = ['l1_score', 'l2_score', 'l1_rc_score', 'l2_rc_score']
+cols = ['index'] + val_vars
+temp = df[cols].melt(id_vars='index', value_vars=val_vars)
 
-	g = sns.FacetGrid(temp, col='variable')
-	g.map(plot_hist, 'value')
+g = sns.FacetGrid(temp, col='variable')
+g.map(plot_hist, 'value')
+g.map(plot_mm_lines, 'variable')
 
-	fname = oprefix+'_linker_score_dists.png'
-	plt.savefig(fname)
+fname = oprefix+'_linker_score_dists.png'
+plt.savefig(fname)
 
-	plt.clf()
+plt.clf()
 
 # plot heatmap of number of reads recovered with different linker
 # mismatch allowances

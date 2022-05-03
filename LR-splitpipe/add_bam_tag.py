@@ -6,8 +6,7 @@ def get_args():
 	parser = argparse.ArgumentParser()
 
 	parser.add_argument('-s', dest='samfile',
-		help='SAM file with Split-seq '+\
-			 'barcode+UMI information in the read name')
+		help='SAM file with Split-seq barcode+UMI information in the read name')
 	parser.add_argument('--merge_primers', dest='merge_primers',
 		default=False, action='store_true',
 		help='Merge reads that come from the same cell from different priming strategies')

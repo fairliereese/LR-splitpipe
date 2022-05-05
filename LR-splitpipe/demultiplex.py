@@ -289,14 +289,14 @@ def main():
 	v = int(args.verbosity)
 	delete_input = args.delete_input
 
-	def format_chunksize(c):
-		if '**' in c:
-			i, j = c.split('**')
-			i = float(i)
-			j = float(j)
-			c = i**j
-		c = int(c)
-		return c
+def format_chunksize(c):
+	if '**' in c:
+		i, j = c.split('**')
+		i = float(i)
+		j = float(j)
+		c = i**j
+	c = int(c)
+	return c
 
 	chunksize = format_chunksize(args.chunksize)
 

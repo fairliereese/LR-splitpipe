@@ -288,7 +288,17 @@ def main():
 	t = int(args.threads)
 	v = int(args.verbosity)
 	delete_input = args.delete_input
-	chunksize = int(args.chunksize)
+
+	def format_chunksize(c):
+		if '**' in c:
+			i, j = c.split('**')
+			i = float(i)
+			j = float(j)
+			c = i**j
+		c = int(c)
+		return c
+
+	chunksize = format_chunksize(args.chunksize)
 
 	if mode == 'all' or mode == 'find_bcs' or mode == 'score_linkers':
 		fastq = args.fastq

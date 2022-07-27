@@ -288,7 +288,6 @@ def main():
 	t = int(args.threads)
 	v = int(args.verbosity)
 	delete_input = args.delete_input
-	pdb.set_trace()
 
 	def format_chunksize(c):
 		if '**' in c:

@@ -21,18 +21,18 @@ def plot_mm_lines(x, **kwargs):
 
 def plot_linker_scores(df, oprefix):
 
-val_vars = ['l1_score', 'l2_score', 'l1_rc_score', 'l2_rc_score']
-cols = ['index'] + val_vars
-temp = df[cols].melt(id_vars='index', value_vars=val_vars)
+	val_vars = ['l1_score', 'l2_score', 'l1_rc_score', 'l2_rc_score']
+	cols = ['index'] + val_vars
+	temp = df[cols].melt(id_vars='index', value_vars=val_vars)
 
-g = sns.FacetGrid(temp, col='variable')
-g.map(plot_hist, 'value')
-g.map(plot_mm_lines, 'variable')
+	g = sns.FacetGrid(temp, col='variable')
+	g.map(plot_hist, 'value')
+	g.map(plot_mm_lines, 'variable')
 
-fname = oprefix+'_linker_score_dists.png'
-plt.savefig(fname)
+	fname = oprefix+'_linker_score_dists.png'
+	plt.savefig(fname)
 
-plt.clf()
+	plt.clf()
 
 # plot heatmap of number of reads recovered with different linker
 # mismatch allowances

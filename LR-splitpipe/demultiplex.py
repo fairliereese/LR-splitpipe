@@ -10,6 +10,7 @@ import math
 import sys
 import argparse
 import os
+import pdb
 
 from utils import *
 from plotting import *
@@ -57,12 +58,11 @@ def score(fastq, oprefix, t,
 	# make some plots
 	df = pd.read_csv(fname, sep='\t', usecols=[3,4,5,6])
 	df.reset_index(inplace=True)
-	plot_linker_scores(df, oprefix)
-	plot_linker_heatmap(df, oprefix, how='integer')
-	plot_linker_heatmap(df, oprefix, how='proportion')
+	plot_post_score_plots(df, oprefix)
 
 def find_bcs(fastq, oprefix, t,
 					  l1_mm, l2_mm,
+					  max_dist, max_len,
 					  chunksize, verbosity,
 					  delete_input):
 	"""
@@ -81,6 +81,8 @@ def find_bcs(fastq, oprefix, t,
 		t (int): Number of threads to run on
 		l1_m (int): Number of allowable mismatches in linker 1
 		l2_m (int): Number of allowable mismatches in linker 2
+		max_dist (int): Max. distance that a linker can be from the end of the read
+		max_len (int): Max. length of a read to be considered
 		l1_p (float): Proportion of allowable mismatches in linker 1
 		l2_p (float): Proportion of allowable mismatches in linker 2
 		keep_dupes (bool):
@@ -104,14 +106,13 @@ def find_bcs(fastq, oprefix, t,
 					 delete_input=delete_input)
 
 	# make some plots
-	df = pd.read_csv(fname, sep='\t', usecols=[3,4,5,6])
+	df = pd.read_csv(fname, sep='\t', usecols=[3,4,5,6,7])
 	df.reset_index(inplace=True)
-	plot_linker_scores(df, oprefix)
-	plot_linker_heatmap(df, oprefix, how='integer')
-	plot_linker_heatmap(df, oprefix, how='proportion')
+	plot_post_score_plots(df, oprefix)
 
 	fname = align_linkers(fname, oprefix,
 					l1_m=l1_mm, l2_m=l2_mm,
+					max_dist=max_dist, max_len=max_len,
 					t=t,
 					verbose=verbosity,
 					chunksize=chunksize,
@@ -178,7 +179,7 @@ def process_bcs(fnames, oprefix, t,
 	# plot read lengths as they are after trimming
 	df = pd.read_csv('{}_seq_umi_len.tsv'.format(oprefix), sep='\t',
 		usecols=[3,4,5,9])
-	plot_read_length(df, oprefix)
+	plot_read_length(df, oprefix+'_post_bc')
 
 	# for UMI plots, only consider reads with FL UMIs
 	kind = 'Post-correction'
@@ -211,6 +212,9 @@ def get_args():
 		help='Number of allowable mismatches in linker2')
 	parser_all.add_argument('--chunksize', dest='chunksize', default=10**5,
 		help='Number of lines to read in / process at a time')
+	parser_all.add_argument('--max_linker_dist', dest='max_dist', default=None,
+		help='Maximum distance that a linker can be from the end of a read')
+	parser_all.add_argument('--max_read_len', dest='max_len', default=None)
 	parser_all.add_argument('--verbosity', dest='verbosity', default=1,
 		help="""Verbosity setting.
 			    0: No output
@@ -252,6 +256,9 @@ def get_args():
 		help='Number of allowable mismatches in linker2')
 	parser_find_bcs.add_argument('--chunksize', dest='chunksize', default=10**5,
 		help='Number of lines to read in at any given time')
+	parser_find_bcs.add_argument('--max_linker_dist', dest='max_dist', default=None,
+		help='Maximum distance that a linker can be from the end of a read')
+	parser_find_bcs.add_argument('--max_read_len', dest='max_len', default=None)
 	parser_find_bcs.add_argument('--verbosity', dest='verbosity', default=1,
 		help='Verbosity setting. Higher number = more messages')
 	parser_find_bcs.add_argument('--delete_input', dest='delete_input',
@@ -302,6 +309,14 @@ def main():
 
 	if mode == 'all' or mode == 'find_bcs' or mode == 'score_linkers':
 		fastq = args.fastq
+		if args.max_dist:
+			max_dist = int(args.max_dist)
+		else:
+			max_dist = None
+		if args.max_len:
+			max_len = int(args.max_len)
+		else:
+			max_dist = None
 		if mode == 'all' or mode == 'find_bcs':
 			l1_mm = int(args.l1_mm)
 			l2_mm = int(args.l2_mm)
@@ -312,6 +327,7 @@ def main():
 	if mode == 'all' or mode == 'find_bcs':
 		fname = find_bcs(fastq, oprefix, t,
 								  l1_mm, l2_mm,
+								  max_dist, max_len,
 								  chunksize, v,
 							  	  delete_input)
 

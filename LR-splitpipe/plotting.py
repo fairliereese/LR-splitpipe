@@ -82,7 +82,7 @@ def plot_linker_heatmap(df, oprefix, how='integer'):
 	plt.savefig(fname, bbox_inches='tight')
 	plt.clf()
 
-def plot_read_length(df, oprefix):
+def plot_read_length(df, oprefix, xlim=None):
 	"""
 	Plot read length distributions after trimming bc / linker
 	construct from reads.
@@ -97,7 +97,8 @@ def plot_read_length(df, oprefix):
 	ax.set(xlabel='Read length', ylabel='Number of reads')
 	fname = '{}_read_length_dist.png'.format(oprefix)
 	# plt.xlim((0,10000))
-	plt.xlim((0,4000))
+	if xlim:
+		plt.xlim((0,xlim))
 	plt.savefig(fname)
 	plt.clf()
 

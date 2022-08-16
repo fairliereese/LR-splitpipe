@@ -10,6 +10,9 @@ import math
 import sys
 import argparse
 import os
+import pdb
+from plotting import *
+
 
 ###################################################################################
 ############################### Helper functions ##################################
@@ -125,6 +128,55 @@ def get_min_edit_dists(bc, edit_dict, max_d=3):
 		bc_matches = edit_dict[3][bc]
 	return bc_matches, edit_dist
 
+def get_linker_dists(df, strand):
+	"""
+	Get the distance of each linker from the end of the read
+
+	Parameters:
+		df (pandas DataFrame): DF of each read w/ linker positions
+		strand (str): {'+', '-'}
+
+	Returns:
+		df (pandas DataFrame): Same DF as input with `linker_dist`
+	"""
+	if strand == '+':
+		df['l1_dist'] = df['l1_stop']
+		df['l2_dist'] = df['l2_stop']
+	elif strand == '-':
+		df['l1_dist'] = df['read_len']-df['l1_start']
+		df['l2_dist'] = df['read_len']-df['l2_start']
+	return df
+
+def get_fwd_rev(df):
+	"""
+	Split a DF into two; one for each strand
+
+	Parameters:
+		df (pandas DataFrame): DF w/ `l_dir` strand info
+
+	Returns:
+		fwd (pandas DataFrame): DF for + strand reads
+		ref (pandas DataFrame): DF for - strand reads
+	"""
+	fwd = df.loc[df.l_dir=='+'].copy(deep=True)
+	rev = df.loc[df.l_dir=='-'].copy(deep=True)
+	return fwd, rev
+
+###################################################################################
+############################### Plotting ##################################
+###################################################################################
+def plot_post_score_plots(df, oprefix):
+	"""
+	Plot relevant plots after running score_linkers
+	"""
+	plot_linker_scores(df, oprefix)
+	plot_linker_heatmap(df, oprefix, how='integer')
+	plot_linker_heatmap(df, oprefix, how='proportion')
+	plot_read_length(df, oprefix+'_raw')
+	plot_read_length(df, oprefix+'_raw_10k', xlim=10000)
+	plot_read_length(df, oprefix+'_raw_4k', xlim=4000)
+	plot_read_length(df, oprefix+'_raw_1k', xlim=4000)
+
 ###################################################################################
 ############################### Processing steps ##################################
 ###################################################################################
@@ -175,6 +227,7 @@ def fastq_to_df(fname, oprefix, verbose=1):
 				df.columns = ['seq']
 				df['read_name'] = read_names
 				df['strand'] = strands
+				df['read_len'] = df.seq.str.len()
 
 				# first write
 				if i == chunksize:
@@ -195,7 +248,12 @@ def fastq_to_df(fname, oprefix, verbose=1):
 		df.columns = ['seq']
 		df['read_name'] = read_names
 		df['strand'] = strands
-		df.to_csv(ofile, sep='\t', header=None, index=False, mode='a')
+		df['read_len'] = df.seq.str.len()
+		if i > chunksize:
+			df.to_csv(ofile, sep='\t', header=None, index=False, mode='a')
+		else:
+			df.to_csv(ofile, sep='\t', index=False)
+
 
 	return ofile
 
@@ -246,7 +304,8 @@ def score_linkers(fname, oprefix, t=1,
 
 		i += chunksize
 		if verbose == 2:
-			print('Found linker scores for {} reads'.format(i))
+			ts = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
+			print('[{}] Found linker scores for {} reads'.format(ts, i))
 
 	# delete input file
 	if delete_input:
@@ -258,6 +317,7 @@ def align_linkers(fname, oprefix,
 						  t=1, chunksize=10**5,
 						  l1_m=None, l2_m=None,
 						  l1_p=None, l2_p=None,
+						  max_dist=200, max_len=10000,
 						  keep_dupes=False, verbose=1,
 						  delete_input=False):
 	"""
@@ -275,6 +335,8 @@ def align_linkers(fname, oprefix,
 		l2_m (int): Number of allowable mismatches in linker 2
 		l1_p (float): Proportion of allowable mismatches in linker 1
 		l2_p (float): Proportion of allowable mismatches in linker 2
+		max_dist (int): Max. distance that a linker can be from the end of the read
+		max_len (int): Max. length of a read to be considered
 		keep_dupes (bool):
 		chunksize (int): Number of lines to process at a time
 		delete_input (bool): Whether or not to delete input file
@@ -283,6 +345,7 @@ def align_linkers(fname, oprefix,
 	Returns:
 		ofile (str): Name of output file
 	"""
+	print('in align_linkers, using {} threads'.format(t))
 
 	# calculate lowest scores viable for l1 and l2
 	if l1_m and l2_m:
@@ -306,6 +369,16 @@ def align_linkers(fname, oprefix,
 	n_alignments = 0
 	ofile = '{}_seq_linker_alignments.tsv'.format(oprefix)
 	for df in pd.read_csv(fname, chunksize=chunksize, sep='\t'):
+
+		# add read length
+		df['read_len'] = df.seq.str.len()
+
+		# enforce max read length
+		if max_len:
+			df = df.loc[df.read_len < max_len]
+			if verbose == 2:
+
+				print('Found {} reads < {}bp long'.format(len(df.index), max_len))
 
 		# init some dfs
 		fwd_df = pd.DataFrame()
@@ -378,18 +451,42 @@ def align_linkers(fname, oprefix,
 
 		df = pd.concat(dfs)
 
-		n_alignments += len(df.index)
+		# get last n bp of each read to search for linkers
+		if max_dist:
+			fwd_df, rev_df = get_fwd_rev(df)
+			fwd_df['short_seq'] = df.seq.str.slice(stop=max_dist)
+			rev_df['short_seq'] = df.seq.str.slice(start=-1*max_dist)
+
+			df = pd.concat([fwd_df, rev_df], axis=0)
+		else:
+			df['short_seq'] = df.seq
+		df['short_seq_len'] = df.short_seq.str.len()
 
 		# find the start and end of each alignment for the valid reads
 		l1, l1_rc, l2, l2_rc = get_linkers()
+
 		if t == 1:
-			l_df = df.apply(align_linkers_x, args=(l1, l2, l1_rc, l2_rc),
+			l_df = df.apply(align_linkers_x, args=(l1, l2, l1_rc, l2_rc, max_dist),
 				axis=1, result_type='expand')
 		else:
 			pandarallel.initialize(nb_workers=t, verbose=1)
-			l_df = df.parallel_apply(align_linkers_x, args=(l1, l2, l1_rc, l2_rc),
+			l_df = df.parallel_apply(align_linkers_x, args=(l1, l2, l1_rc, l2_rc, max_dist),
 				axis=1, result_type='expand')
-		df = pd.concat([df, l_df], axis=1)
+
+		# merge linker position information w/ df
+		df.drop([c for c in df.columns if 'score' in c], axis=1, inplace=True)
+		df = df.merge(l_df, how='left', on='read_name')
+
+		# re-enforce mismatch cutoff
+		df = df.loc[(df.l1_score >= l1_min)&(df.l2_score >= l2_min)]
+		if verbose == 2:
+			print('Found {} reads w/ linkers in last {}bp'.format(len(df.index), max_dist))
+
+		# drop short seq stuff
+		df.drop(['short_seq', 'short_seq_len'], axis=1, inplace=True)
+
+		# increment our read count for reads w/ valid linkers
+		n_alignments += len(df.index)
 
 		# first write
 		if i == 0:
@@ -399,9 +496,10 @@ def align_linkers(fname, oprefix,
 
 		i += chunksize
 		if verbose == 2:
-			print('Found linkers for {} reads'.format(i))
+			ts = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
+			print('[{}] Found linkers for {} reads'.format(ts, i))
 
-	if verbose < 0:
+	if verbose > 0:
 		print('Found {} reads with valid linker combinations'.format(n_alignments))
 
 	# delete input file
@@ -492,14 +590,16 @@ def get_perfect_bc_counts(fnames, verbose=1):
 	bc_8nt_bc3, bc_8nt_bc2, bc_8nt_bc1 = load_barcodes_set()
 
 	# load in just bcs from everything
+	# cnums = [15,16,17,18]
+	cnums = [14,15,16,17]
 	if type(fnames) == list:
 		df = pd.DataFrame()
 		for i, fname in enumerate(fnames):
-			   temp = pd.read_csv(fname, sep='\t', usecols=[15,16,17,18])
+			   temp = pd.read_csv(fname, sep='\t', usecols=cnums)
 			   df = pd.concat([df, temp])
 	else:
 		fname = fnames
-		df = pd.read_csv(fname, sep='\t', usecols=[15,16,17,18])
+		df = pd.read_csv(fname, sep='\t', usecols=cnums)
 
 	df['bc1_valid'] = df.bc1.isin(list(bc_8nt_bc1))
 	df['bc2_valid'] = df.bc2.isin(list(bc_8nt_bc2))
@@ -914,7 +1014,7 @@ def score_linkers_x(x, l_seqs, l_prefs):
 		entry['{}_score'.format(pref)] = score
 	return entry
 
-def align_linkers_x(x, l1, l2, l1_rc, l2_rc):
+def align_linkers_x(x, l1, l2, l1_rc, l2_rc, max_dist):
 	"""
 	Function to find inds of linkers across rows of a dataframe
 
@@ -924,10 +1024,12 @@ def align_linkers_x(x, l1, l2, l1_rc, l2_rc):
 		l2 (str): Linker 2
 		l1_rc (str): Linker 1 reverse complement
 		l2_rc (str): Linker 2 reverse complement
+		max_dist (int): Max. dist from end of read to search for linkers
 
 	Returns:
 		entry (pandas Series): Row with linker alignment indices
 	"""
+
 	entry = {}
 
 	# forward or reverse search?
@@ -937,23 +1039,20 @@ def align_linkers_x(x, l1, l2, l1_rc, l2_rc):
 
 	# compute alignments for both linkers in the correct orientation
 	# use the default alignment
-	l1_a = pairwise2.align.localms(x.seq, l1,
+	l1_a = pairwise2.align.localms(x.short_seq, l1,
 				1, -1, -1, -1,
 				one_alignment_only=True)
-	l2_a = pairwise2.align.localms(x.seq, l2,
+	l2_a = pairwise2.align.localms(x.short_seq, l2,
 				1, -1, -1, -1,
 				one_alignment_only=True)
 
-	# grab start and end of each linker
-	try:
-		l1_start = l1_a[0].start
-	except:
-		print('REEEEE')
-		print(x.read_name)
-		raise ValueError('REEEE')
+	# grab start, end, score of each linker
+	l1_start = l1_a[0].start
 	l1_stop = l1_a[0].end
+	l1_score = l1_a[0].score
 	l2_start = l2_a[0].start
 	l2_stop = l2_a[0].end
+	l2_score = l2_a[0].score
 
 	# calculate some metrics
 	l1_len = l1_stop-l1_start
@@ -966,13 +1065,27 @@ def align_linkers_x(x, l1, l2, l1_rc, l2_rc):
 		bc2_len = np.nan
 
 	# construct an entry
+	entry['read_name'] = x.read_name
+
 	entry['l1_start'] = l1_start
 	entry['l1_stop'] = l1_stop
+	entry['l1_score'] = l1_score
+	entry['l1_len'] = l1_len
+
 	entry['l2_start'] = l2_start
 	entry['l2_stop'] = l2_stop
-	entry['l1_len'] = l1_len
+	entry['l2_score'] = l2_score
 	entry['l2_len'] = l2_len
+
 	entry['bc2_len'] = bc2_len
+
+	# correct starts and ends if we're only looking at last n
+	# bp of each read
+	if max_dist:
+		if x.l_dir == '-' and x.short_seq_len == max_dist:
+			for c in ['l1_start', 'l1_stop',
+				  'l2_start', 'l2_stop']:
+				entry[c] = (x.read_len-x.short_seq_len)+entry[c]
 
 	return entry
 

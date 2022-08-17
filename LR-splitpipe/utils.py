@@ -11,6 +11,7 @@ import sys
 import argparse
 import os
 import pdb
+import gzip
 from plotting import *
 
 
@@ -203,44 +204,52 @@ def fastq_to_df(fname, oprefix, verbose=1):
 	strands = []
 	i = 1
 	ofile = '{}_table.tsv'.format(oprefix)
-	with open(fname, 'r') as f:
-		while True:
-			read_name = f.readline().strip()
-			read_name = read_name[1:]
-			if len(read_name)==0:
-				break
-			seq = f.readline().strip()
-			strand = f.readline().strip()
-			qual = f.readline()
-			seqs.append(seq)
-			strands.append(strand)
-			read_names.append(read_name)
 
-			# print out notification and write to file
-			chunksize = 100000
-			if i % chunksize == 0 and i != 1 :
-				if verbose == 2:
-					print('Processed {} reads'.format(i))
+	# read differently depending on if it's gzipped
+	if fname.endswith('.gz'):
+		print(fname)
+		f = gzip.open(fname, 'rt')
+	else:
+		f = open(fname, 'r')
 
-				# pack everything into a dataframe
-				df = pd.DataFrame(seqs)
-				df.columns = ['seq']
-				df['read_name'] = read_names
-				df['strand'] = strands
-				df['read_len'] = df.seq.str.len()
+	while True:
+		read_name = f.readline().strip()
+		read_name = read_name[1:]
+		if len(read_name)==0:
+			break
+		seq = f.readline().strip()
+		strand = f.readline().strip()
+		qual = f.readline()
+		seqs.append(seq)
+		strands.append(strand)
+		read_names.append(read_name)
 
-				# first write
-				if i == chunksize:
-					df.to_csv(ofile, sep='\t', index=False)
-					read_names = []
-					strands = []
-					seqs = []
-				else:
-					df.to_csv(ofile, sep='\t', header=None, index=False, mode='a')
-					read_names = []
-					strands = []
-					seqs = []
-			i += 1
+		# print out notification and write to file
+		chunksize = 100000
+		if i % chunksize == 0 and i != 1 :
+			if verbose == 2:
+				print('Processed {} reads'.format(i))
+
+			# pack everything into a dataframe
+			df = pd.DataFrame(seqs)
+			df.columns = ['seq']
+			df['read_name'] = read_names
+			df['strand'] = strands
+			df['read_len'] = df.seq.str.len()
+
+			# first write
+			if i == chunksize:
+				df.to_csv(ofile, sep='\t', index=False)
+				read_names = []
+				strands = []
+				seqs = []
+			else:
+				df.to_csv(ofile, sep='\t', header=None, index=False, mode='a')
+				read_names = []
+				strands = []
+				seqs = []
+		i += 1
+	f.close()
 
 	# cleanup
 	if len(seqs) > 0:

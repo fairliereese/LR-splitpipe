@@ -22,7 +22,7 @@ Subcommands:
   process_bcs          Run steps after finding barcodes (steps 4-6)
 
 Options:
-  -f                   FASTQ file output from IsoSeq Lima with LR-Split-seq reads
+  -f                   FASTQ (gzipped or not) file output with LR-Split-seq or Split-seq reads
   -o                   Output file path / prefix
   -t                   Number of threads to run on (multithreading is recommended)
   --l1_mm              Number of allowable mismatches in linker1
@@ -31,6 +31,10 @@ Options:
                         Default: 3
   --chunksize          Number of lines to read in / process at a time
                         Default: 10**5
+  --max_linker_dist    Maximum distance that a linker can be from the end of a read
+                        Default: None (recommended ~200 based on our data)
+  --max_read_len       Maximum read length to analyze for linkers / barcodes
+                        Default: None
   --verbosity          Verbosity setting.
                          0: No output
                          1: QC statistics

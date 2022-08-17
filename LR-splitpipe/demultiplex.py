@@ -118,6 +118,14 @@ def find_bcs(fastq, oprefix, t,
 					chunksize=chunksize,
 					delete_input=delete_input)
 
+	# make linker dist plots
+	df = pd.read_csv(fname, sep='\t', usecols=[3,4,5,6,9,10])
+	fwd, rev = get_fwd_rev(df)
+	fwd = get_linker_dists(fwd, '+')
+	rev = get_linker_dists(rev, '-')
+	df = pd.concat([rev, fwd], axis=0)
+	plot_linker_dists(df, oprefix)
+
 	fname = get_bcs_umis(fname, oprefix,
 				 t=t,
 				 verbose=verbosity,

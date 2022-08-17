@@ -3,7 +3,7 @@ import seaborn as sns
 import pandas as pd
 import math
 import numpy as np
-
+# from utils import *
 
 def plot_hist(x, **kwargs):
 	ax = sns.histplot(x, binwidth=1)
@@ -33,6 +33,18 @@ def plot_linker_scores(df, oprefix):
 	plt.savefig(fname)
 
 	plt.clf()
+
+def plot_linker_dists(df, oprefix, xlim=None):
+	"""
+	Plot a histogram of the distance from the end of each read that
+	each linker is
+	"""
+	for l in ['l1_dist', 'l2_dist']:
+		ax = sns.displot(df, x=l, kind='hist', binwidth=5)
+		if xlim:
+			_ = ax.set(xlim=(0,xlim))
+		fname = '{}_{}.png'.format(oprefix, l)
+		plt.savefig(fname)
 
 # plot heatmap of number of reads recovered with different linker
 # mismatch allowances

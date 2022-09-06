@@ -56,7 +56,7 @@ def score(fastq, oprefix, t,
 					 delete_input=delete_input)
 
 	# make some plots
-	df = pd.read_csv(fname, sep='\t', usecols=[3,4,5,6])
+	df = pd.read_csv(fname, sep='\t', usecols=[3,4,5,6,7])
 	df.reset_index(inplace=True)
 	plot_post_score_plots(df, oprefix)
 

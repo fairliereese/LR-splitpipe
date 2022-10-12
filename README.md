@@ -25,6 +25,7 @@ Options:
   -f                   FASTQ (gzipped or not) file output with LR-Split-seq or Split-seq reads
   -o                   Output file path / prefix
   -t                   Number of threads to run on (multithreading is recommended)
+  -k                   Kit used for barcoding {WT, WT_mini, WT_mega}
   --l1_mm              Number of allowable mismatches in linker1
                         Default: 3
   --l2_mm              Number of allowable mismatches in linker2
@@ -86,6 +87,7 @@ Usage: python LR-splitpipe/add_bam_tag.py
 Options:
   -s                   SAM file with Split-seq barcode+UMI information in
                          the read name
+  -k                   Kit used for barcoding {WT, WT_mini, WT_mega}
   --merge_primers      Merge reads that come from the same cell from different
                          priming strategies
   --suffix             Suffix to add to cell barcodes. Useful if merging

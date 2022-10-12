@@ -12,6 +12,8 @@ import argparse
 import os
 import pdb
 import gzip
+import json
+from collections import defaultdict
 from plotting import *
 
 
@@ -21,56 +23,77 @@ from plotting import *
 
 	# https://stackoverflow.com/questions/25962114/how-do-i-read-a-large-csv-file-with-pandas
 
-def load_barcodes():
+# from the parse pipeline
+def load_bc_dict(fname, verb=False):
+	""" Load barcode edit dict
+	"""
+	with open(fname, 'r') as INFILE:
+	    bc_dict = json.load(INFILE)
+	    if verb:
+	        print(f"Loaded {fname}")
+
+	# Top level has int keys and holds default dicts
+	new_dict = {}
+	for k, v in bc_dict.items():
+	    new_dict[int(k)] = defaultdict(list, bc_dict[k])
+
+	return new_dict
+
+def get_bc_round_set(kit):
+	KIT_INT_DICT = {'custom_1': 1, 'WT': 48, 'WT_mini': 28, 'WT_mega': 96}
+	kit_n = KIT_INT_DICT[kit]
+	if kit_n == 12:
+		bc_round_set = [['bc1','n24_v4'], ['bc2','v1'], ['bc3','v1']]
+	if kit_n == 96:
+		bc_round_set = [['bc1','n192_v4'], ['bc2','v1'], ['bc3','v1']]
+	if kit_n == 48:
+		bc_round_set = [['bc1','v2'], ['bc2','v1'], ['bc3','v1']]
+	return bc_round_set
+
+def load_barcodes(kit):
 	"""
 	Load the barcodes. Adapted from the Parse biosciences pipeline.
 
 	Returns:
-		bc#_edit_dict (dict): Dict for barcode<1,2,3> with
+		edit_dict_set (dict): Dict for barcode<1,2,3> with
 			key: query bc
 			item: corrected bc
 	"""
 	pkg_path = os.path.dirname(__file__)
 	pkg_path = '/'.join(pkg_path.split('/')[:-1])
-	with open(pkg_path + '/barcodes/bc_dict_v1.pkl', 'rb') as f:
-		edit_dict_v1 = pickle.load(f)
-	with open(pkg_path + '/barcodes/bc_dict_v2.pkl', 'rb') as f:
-		edit_dict_v2 = pickle.load(f)
 
-	bc1_edit_dict = edit_dict_v1
-	bc2_edit_dict = edit_dict_v1
-	bc3_edit_dict = edit_dict_v2
+	bc_round_set = get_bc_round_set(kit)
 
-	return bc1_edit_dict, bc2_edit_dict, bc3_edit_dict
+	edit_dict_set = {}
+	for entry in bc_round_set:
+		bc = entry[0]
+		ver = entry[1]
+		fname = pkg_path+'/barcodes/bc_dict_{}.json'.format(ver)
+		edit_dict = load_bc_dict(fname)
+		edit_dict_set[bc] = edit_dict
+
+	return edit_dict_set
 
 # From the Parse biosciences pipeline
-def load_barcodes_set():
+def load_barcodes_set(kit):
 	"""
 	Load the barcodes. Adapted from the Parse biosciences pipeline.
 	"""
 	pkg_path = os.path.dirname(__file__)
 	pkg_path = '/'.join(pkg_path.split('/')[:-1])
-	# pkg_path = '/Users/fairliereese/Documents/programming/mortazavi_lab/data/211206_lr_splitpipe_speedup/'
 
-	with open(pkg_path + '/barcodes/bc_dict_v1.pkl', 'rb') as f:
-		edit_dict_v1 = pickle.load(f)
-	with open(pkg_path + '/barcodes/bc_dict_v2.pkl', 'rb') as f:
-		edit_dict_v2 = pickle.load(f)
+	bc_round_set = get_bc_round_set(kit)
 
-	# read in barcode sequences
-	bc_8nt_v1 = pd.read_csv(pkg_path + '/barcodes/bc_8nt_v1.csv',names=['barcode'],index_col=0).barcode.values
-	bc_8nt_v2 = pd.read_csv(pkg_path + '/barcodes/bc_8nt_v2.csv',names=['barcode'],index_col=0).barcode.values
-	bc1_edit_dict = edit_dict_v1
-	bc2_edit_dict = edit_dict_v1
-	bc3_edit_dict = edit_dict_v2
-	bc_8nt_set_dict = {}
-	bc_8nt_set_dict['bc1'] = set(bc_8nt_v1)
-	bc_8nt_set_dict['bc2'] = set(bc_8nt_v1)
-	bc_8nt_set_dict['bc3'] = set(bc_8nt_v2)
-	bc_8nt_bc1 = bc_8nt_set_dict['bc1']
-	bc_8nt_bc2 = bc_8nt_set_dict['bc2']
-	bc_8nt_bc3 = bc_8nt_set_dict['bc3']
-	return list(bc_8nt_bc1), list(bc_8nt_bc2), list(bc_8nt_bc3)
+	bc_set = {}
+	for entry in bc_round_set:
+		bc = entry[0]
+		ver = entry[1]
+		fname = pkg_path + '/barcodes/bc_data_{}.csv'.format(ver)
+		bc_df = pd.read_csv(fname)
+		bcs = set(bc_df.sequence.tolist())
+		bc_set[bc] = bcs
+
+	return bc_set
 
 def rev_comp(s):
 	"""
@@ -574,13 +597,14 @@ def get_bcs_umis(fname, oprefix, t=1,
 
 	return ofile
 
-def get_perfect_bc_counts(fnames, verbose=1):
+def get_perfect_bc_counts(fnames, kit, verbose=1):
 	"""
 	Count how many reads with valid barcodes within edit
 	distance 3 there are. Adapted from Parse biosciences.
 
 	Parameters:
 		fnames (list of str): Files to process
+		kit (str): {'WT', 'WT_mega', 'WT_mini'}
 		verbose (int): How much output to show
 			0: none
 			1: only QC statistics
@@ -596,7 +620,11 @@ def get_perfect_bc_counts(fnames, verbose=1):
 	"""
 	reads_in_cells_thresh = 0.92
 
-	bc_8nt_bc3, bc_8nt_bc2, bc_8nt_bc1 = load_barcodes_set()
+	# bc_8nt_bc3, bc_8nt_bc2, bc_8nt_bc1 = load_barcodes_set(0
+	bc_set = load_barcodes_set(kit)
+	bc_8nt_bc1 = bc_set['bc1']
+	bc_8nt_bc2 = bc_set['bc2']
+	bc_8nt_bc3 = bc_set['bc3']
 
 	# load in just bcs from everything
 	# cnums = [15,16,17,18]
@@ -634,6 +662,7 @@ def get_perfect_bc_counts(fnames, verbose=1):
 	return df, counts, count_threshold
 
 def correct_barcodes(fnames, oprefix,
+					 kit,
 					 counts, count_thresh,
 					 bc_edit_dist=3, t=1,
 					 chunksize=10**5,
@@ -646,6 +675,7 @@ def correct_barcodes(fnames, oprefix,
 	Parameters:
 		fnames (list of str): Files to process
 		oprefix (str): Where to save output
+		kit (str): Kit used {'WT', 'WT_mini', 'WT_mega'}
 		counts (pandas DataFrame): Output from get_perfect_bc_counts
 			with number of reads observed for each barcode
 		count_thresh (int): Minimum number of reads
@@ -663,7 +693,10 @@ def correct_barcodes(fnames, oprefix,
 		ofile (str): Name of output file
 	"""
 
-	bc3_dict, bc2_dict, bc1_dict = load_barcodes()
+	edit_dict_set = load_barcodes(kit)
+	bc1_dict = edit_dict_set['bc1']
+	bc2_dict = edit_dict_set['bc2']
+	bc3_dict = edit_dict_set['bc3']
 
 	i = 0
 	n_corrected_bcs = 0

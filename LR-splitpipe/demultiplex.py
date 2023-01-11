@@ -330,7 +330,7 @@ def main():
 		if args.max_len:
 			max_len = int(args.max_len)
 		else:
-			max_dist = None
+			max_len = None
 		if mode == 'all' or mode == 'find_bcs':
 			l1_mm = int(args.l1_mm)
 			l2_mm = int(args.l2_mm)

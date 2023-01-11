@@ -259,6 +259,8 @@ def get_args():
 		help='FASTQ file output from Lima with LR-Split-seq reads.')
 	parser_find_bcs.add_argument('-o', dest='oprefix',
 		help='Output file path/prefix')
+	parser_find_bcs.add_argument('-k', dest='kit',
+		help='Kit used, {custom_1, WT, WT_mini, WT_mega}', default='WT')
 	parser_find_bcs.add_argument('-t', dest='threads',
 		help='Number of threads to run on (multithreading is recommended)')
 	parser_find_bcs.add_argument('--l1_mm', dest='l1_mm', default=3,
@@ -331,7 +333,7 @@ def main():
 			max_len = int(args.max_len)
 		else:
 			max_len = None
-			
+
 		if mode == 'all' or mode == 'find_bcs':
 			l1_mm = int(args.l1_mm)
 			l2_mm = int(args.l2_mm)

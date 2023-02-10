@@ -10,7 +10,6 @@ import math
 import sys
 import argparse
 import os
-import pdb
 
 from utils import *
 from plotting import *
@@ -20,7 +19,9 @@ from plotting import *
 ###################################################################################
 def score(fastq, oprefix, t,
 					  chunksize, verbosity,
-					  delete_input):
+					  delete_input,
+		  short,
+		  chemistry):
 	"""
 	Runs the steps of the pipeline that can be done in parallel including
 		* processing the fastq into a dataframe
@@ -53,18 +54,28 @@ def score(fastq, oprefix, t,
 					 t=t,
 					 verbose=verbosity,
 					 chunksize=chunksize,
-					 delete_input=delete_input)
+					 delete_input=delete_input,
+						  short=short,
+						  chem=chemistry)
 
 	# make some plots
-	df = pd.read_csv(fname, sep='\t', usecols=[3,4,5,6,7])
+	if short:
+		cols = [3,4]
+	else:
+		cols = [3,4,5,6]
+	df = pd.read_csv(fname, sep='\t', usecols=cols)
 	df.reset_index(inplace=True)
-	plot_post_score_plots(df, oprefix)
+	plot_linker_scores(df, oprefix, short)
+	plot_linker_heatmap(df, oprefix, short, how='integer')
+	plot_linker_heatmap(df, oprefix, short, how='proportion')
 
 def find_bcs(fastq, oprefix, t,
 					  l1_mm, l2_mm,
-					  max_dist, max_len,
 					  chunksize, verbosity,
-					  delete_input):
+					  delete_input,
+			 graph,
+			 short,
+			 chemistry):
 	"""
 	Runs the steps of the pipeline that can be done in parallel including
 		* processing the fastq into a dataframe
@@ -81,8 +92,6 @@ def find_bcs(fastq, oprefix, t,
 		t (int): Number of threads to run on
 		l1_m (int): Number of allowable mismatches in linker 1
 		l2_m (int): Number of allowable mismatches in linker 2
-		max_dist (int): Max. distance that a linker can be from the end of the read
-		max_len (int): Max. length of a read to be considered
 		l1_p (float): Proportion of allowable mismatches in linker 1
 		l2_p (float): Proportion of allowable mismatches in linker 2
 		keep_dupes (bool):
@@ -103,28 +112,30 @@ def find_bcs(fastq, oprefix, t,
 					 t=t,
 					 verbose=verbosity,
 					 chunksize=chunksize,
-					 delete_input=delete_input)
+					 delete_input=delete_input,
+						  short=short,
+						  chemistry=chemistry)
 
 	# make some plots
-	df = pd.read_csv(fname, sep='\t', usecols=[3,4,5,6,7])
-	df.reset_index(inplace=True)
-	plot_post_score_plots(df, oprefix)
+	if graph:
+		if short:
+			cols = [3,4]
+		else:
+			cols = [3,4,5,6]
+		df = pd.read_csv(fname, sep='\t', usecols=cols)
+		df.reset_index(inplace=True)
+		plot_linker_scores(df, oprefix, short)
+		plot_linker_heatmap(df, oprefix, short, how='integer')
+		plot_linker_heatmap(df, oprefix, short, how='proportion')
 
 	fname = align_linkers(fname, oprefix,
 					l1_m=l1_mm, l2_m=l2_mm,
-					max_dist=max_dist, max_len=max_len,
 					t=t,
 					verbose=verbosity,
 					chunksize=chunksize,
-					delete_input=delete_input)
-
-	# make linker dist plots
-	df = pd.read_csv(fname, sep='\t', usecols=[3,4,5,6,9,10])
-	fwd, rev = get_fwd_rev(df)
-	fwd = get_linker_dists(fwd, '+')
-	rev = get_linker_dists(rev, '-')
-	df = pd.concat([rev, fwd], axis=0)
-	plot_linker_dists(df, oprefix)
+					delete_input=delete_input,
+						  short=short,
+						  chemistry=chemistry)
 
 	fname = get_bcs_umis(fname, oprefix,
 				 t=t,
@@ -134,9 +145,13 @@ def find_bcs(fastq, oprefix, t,
 
 	return fname
 
-def process_bcs(fnames, oprefix, kit, t,
+def process_bcs(fnames, oprefix, t,
 				  chunksize, verbosity,
-				  delete_input):
+				  delete_input,
+				graph,
+				short,
+				chemistry,
+				freads):
 
 	"""
 	Runs the steps of the pipeline that should be done all at once including
@@ -148,7 +163,6 @@ def process_bcs(fnames, oprefix, kit, t,
 	Parameters:
 		fnames (list of str): Files to process
 		oprefix (str): Where to save output
-		kit (str): Which kit was used
 		verbosity (int): How much output to show
 			0: none
 			1: only QC statistics
@@ -158,51 +172,65 @@ def process_bcs(fnames, oprefix, kit, t,
 		delete_input (bool): Whether or not to delete input file
 			after execution
 	"""
-	_, counts, count_thresh = get_perfect_bc_counts(fnames, kit, verbose=verbosity)
+	_, counts, count_thresh = get_perfect_bc_counts(fnames,chemistry=chemistry, short=short, verbose=verbosity)
 
-	fname = correct_barcodes(fnames, oprefix, kit,
+	fname = correct_barcodes(fnames, oprefix,
 						 counts, count_thresh,
 						 bc_edit_dist=3,
 						 t=t,
 						 verbose=verbosity,
 						 chunksize=chunksize,
-						 delete_input=False)
+						 delete_input=False,
+						 chemistry=chemistry)
+	if not short:
+		fname = trim_bcs(fname, oprefix,
+					t=t,
+					verbose=verbosity,
+					chunksize=chunksize,
+					delete_input=delete_input)
 
-	fname = trim_bcs(fname, oprefix,
-				t=t,
-				verbose=verbosity,
-				chunksize=chunksize,
-				delete_input=delete_input)
-
-	fname = flip_reads(fname, oprefix,
-				t=t,
-				verbose=verbosity,
-				chunksize=chunksize,
-				delete_input=delete_input)
+		fname = flip_reads(fname, oprefix,
+					t=t,
+					verbose=verbosity,
+					chunksize=chunksize,
+					delete_input=delete_input)
 
 	fname = filter_dupe_umis(fname, oprefix,
 				verbose=verbosity,
 				chunksize=chunksize,
-				delete_input=delete_input)
+				delete_input=delete_input,
+				short=short)
 
-	# plot read lengths as they are after trimming
-	df = pd.read_csv('{}_seq_umi_len.tsv'.format(oprefix), sep='\t',
-		usecols=[3,4,5,9])
-	plot_read_length(df, oprefix+'_post_bc')
+	if graph:
+		# plot read lengths as they are after trimming
+		df = pd.read_csv('{}_seq_umi_len.tsv'.format(oprefix), sep='\t',
+			usecols=[3,4,5,9])
+		plot_read_length(df, oprefix)
 
-	# for UMI plots, only consider reads with FL UMIs
-	kind = 'Post-correction'
-	df = df.loc[df.umi_len == 10]
-	temp = plot_knee_plot(df, oprefix, kind)
-	plot_sequencing_sat(df, oprefix, kind)
-
+		# for UMI plots, only consider reads with FL UMIs
+		kind = 'Post-correction'
+		df = df.loc[df.umi_len == 10]
+		temp = plot_knee_plot(df, oprefix, kind)
+		plot_sequencing_sat(df, oprefix, kind)
+		
 	fname = write_fastq(fname, oprefix,
 				chunksize=chunksize,
-				delete_input=delete_input)
+				delete_input=delete_input,
+				freads=freads,
+				short=short,
+				verbose=verbosity)
 
 ###################################################################################
 ############################# Argparsing functions ################################
 ###################################################################################
+
+'''
+Options/Functions i should add
+-l linker changed chemistry v1/v2 as well as barcode set.
+-long read non long read. changes the trimming as well as complementary check
+-create graphical output on off. this should make things faster
+'''
+
 def get_args():
 	parser = argparse.ArgumentParser()
 	subparsers = parser.add_subparsers(dest='mode')
@@ -213,8 +241,6 @@ def get_args():
 		help='FASTQ file output from Lima with LR-Split-seq reads.')
 	parser_all.add_argument('-o', dest='oprefix',
 		help='Output file path/prefix')
-	parser_all.add_argument('-k', dest='kit',
-		help='Kit used, {WT, WT_mini, WT_mega}')
 	parser_all.add_argument('-t', dest='threads',
 		help='Number of threads to run on (multithreading is recommended)')
 	parser_all.add_argument('--l1_mm', dest='l1_mm', default=3,
@@ -223,9 +249,6 @@ def get_args():
 		help='Number of allowable mismatches in linker2')
 	parser_all.add_argument('--chunksize', dest='chunksize', default=10**5,
 		help='Number of lines to read in / process at a time')
-	parser_all.add_argument('--max_linker_dist', dest='max_dist', default=None,
-		help='Maximum distance that a linker can be from the end of a read')
-	parser_all.add_argument('--max_read_len', dest='max_len', default=None)
 	parser_all.add_argument('--verbosity', dest='verbosity', default=1,
 		help="""Verbosity setting.
 			    0: No output
@@ -234,6 +257,18 @@ def get_args():
 	parser_all.add_argument('--delete_input', dest='delete_input',
 		action='store_true',
 		help='Delete temporary files (recommended!)', default=False)
+
+	#added by Lucas Kuijpers
+	parser_all.add_argument('--no_graphical', dest='graph', action='store_false',
+							help='Excludes graphical output, will increase spead with large datasets',
+							default=True)
+	parser_all.add_argument('-c', '--chemistry', dest='chemistry',
+							default='v2',
+							help='Which linker chemistry to use: v1 or v2')
+	parser_all.add_argument('--short-read', dest='short',
+							default=False, action='store_true',
+							help='Excludes trimming and flipping of reads allowing short reads to work as well. default is True')
+	parser_all.add_argument('-f2', dest='freads', help ='the forward reads, only necesarry when read type is short', default=None)
 	# parser_all.add_argument('--filt_umi', dest='filt_umi', default=False,
 	# 	help='Filter out duplicate UMIs using longest read heuristic')
 
@@ -252,6 +287,16 @@ def get_args():
 		action='store_true', help='Delete temporary files', default=False)
 	# parser_find_bcs.add_argument('--filt_umi', dest='filt_umi', default=False,
 	# 	help='Filter out duplicate UMIs using longest read heuristic')
+	# added by Lucas Kuijpers
+	parser_score_linkers.add_argument('--no_graphical', dest='graph', action='store_false',
+							help='Excludes graphical output, will increase spead with large datasets',
+							default=True)
+	parser_score_linkers.add_argument('-c', '--chemistry', dest='chemistry',
+							default='v2',
+							help='Which linker chemistry to use: v1 or v2')
+	parser_score_linkers.add_argument('--short-read', dest='short',
+									  default=False, action='store_true',
+							help='Excludes trimming and flipping of reads allowing short reads to work as well. default is True')
 
 	# find bcs
 	parser_find_bcs = subparsers.add_parser('find_bcs', help='Run find_bcs step')
@@ -259,8 +304,6 @@ def get_args():
 		help='FASTQ file output from Lima with LR-Split-seq reads.')
 	parser_find_bcs.add_argument('-o', dest='oprefix',
 		help='Output file path/prefix')
-	parser_find_bcs.add_argument('-k', dest='kit',
-		help='Kit used, {custom_1, WT, WT_mini, WT_mega}', default='WT')
 	parser_find_bcs.add_argument('-t', dest='threads',
 		help='Number of threads to run on (multithreading is recommended)')
 	parser_find_bcs.add_argument('--l1_mm', dest='l1_mm', default=3,
@@ -269,9 +312,6 @@ def get_args():
 		help='Number of allowable mismatches in linker2')
 	parser_find_bcs.add_argument('--chunksize', dest='chunksize', default=10**5,
 		help='Number of lines to read in at any given time')
-	parser_find_bcs.add_argument('--max_linker_dist', dest='max_dist', default=None,
-		help='Maximum distance that a linker can be from the end of a read')
-	parser_find_bcs.add_argument('--max_read_len', dest='max_len', default=None)
 	parser_find_bcs.add_argument('--verbosity', dest='verbosity', default=1,
 		help='Verbosity setting. Higher number = more messages')
 	parser_find_bcs.add_argument('--delete_input', dest='delete_input',
@@ -279,6 +319,16 @@ def get_args():
 		help='Delete temporary files', default=False)
 	# parser_find_bcs.add_argument('--filt_umi', dest='filt_umi', default=False,
 	# 	help='Filter out duplicate UMIs using longest read heuristic')
+	# added by Lucas Kuijpers
+	parser_find_bcs.add_argument('--no_graphical', dest='graph', action='store_false',
+									  help='Excludes graphical output, will increase spead with large datasets',
+									  default=True)
+	parser_find_bcs.add_argument('-c', '--chemistry', dest='chemistry',
+									  default='v2',
+									  help='Which linker chemistry to use: v1 or v2')
+	parser_find_bcs.add_argument('--short-read', dest='short',
+									  default=False, action='store_true',
+									  help='Excludes trimming and flipping of reads allowing short reads to work as well. default is True')
 
 	# process bcs
 	parser_process_bcs = subparsers.add_parser('process_bcs', help='Run process_bcs step')
@@ -286,8 +336,6 @@ def get_args():
 		help='Comma-separated list of files from "find_bcs" step with suffix "_bcs.tsv".')
 	parser_process_bcs.add_argument('-o', dest='oprefix',
 		help='Output file path/prefix')
-	parser_process_bcs.add_argument('-k', dest='kit',
-		help='Kit used, {custom_1, WT, WT_mini, WT_mega}')
 	parser_process_bcs.add_argument('-t', dest='threads',
 		help='Number of threads to run on (multithreading is recommended)')
 	parser_process_bcs.add_argument('--chunksize', dest='chunksize', default=10**5,
@@ -297,6 +345,14 @@ def get_args():
 	parser_process_bcs.add_argument('--delete_input', dest='delete_input',
 		action='store_true',
 		help='Delete temporary files', default=False)
+	# added by Lucas Kuijpers
+	parser_process_bcs.add_argument('--no_graphical', dest='graph', action='store_false',
+									  help='Excludes graphical output, will increase spead with large datasets',
+									  default=True)
+	parser_process_bcs.add_argument('--short-read', dest='short',
+									  default=False, action='store_true',
+									  help='Excludes trimming and flipping of reads allowing short reads to work as well. default is True')
+	parser_process_bcs.add_argument('-f2', dest='freads', help ='the forward reads, only necesarry when read type is short', default = None)
 	# parser_process_bcs.add_argument('--filt_umi', dest='filt_umi', default=False,
 	# 	help='Filter out duplicate UMIs using longest read heuristic')
 
@@ -310,30 +366,14 @@ def main():
 	t = int(args.threads)
 	v = int(args.verbosity)
 	delete_input = args.delete_input
-
-	def format_chunksize(c):
-		if '**' in c:
-			i, j = c.split('**')
-			i = float(i)
-			j = float(j)
-			c = i**j
-		c = int(c)
-		return c
-
-	chunksize = format_chunksize(args.chunksize)
+	chunksize = int(args.chunksize)
+	graph = args.graph
+	short = args.short
+	chemistry = args.chemistry
+	freads = args.freads
 
 	if mode == 'all' or mode == 'find_bcs' or mode == 'score_linkers':
 		fastq = args.fastq
-		kit = args.kit
-		if args.max_dist:
-			max_dist = int(args.max_dist)
-		else:
-			max_dist = None
-		if args.max_len:
-			max_len = int(args.max_len)
-		else:
-			max_len = None
-
 		if mode == 'all' or mode == 'find_bcs':
 			l1_mm = int(args.l1_mm)
 			l2_mm = int(args.l2_mm)
@@ -344,23 +384,35 @@ def main():
 	if mode == 'all' or mode == 'find_bcs':
 		fname = find_bcs(fastq, oprefix, t,
 								  l1_mm, l2_mm,
-								  max_dist, max_len,
 								  chunksize, v,
-							  	  delete_input)
+							  	  delete_input,
+						 graph,
+						 short,
+						 chemistry)
 
 		if mode == 'all':
-			fname = process_bcs(fname, oprefix, kit, t,
+			fname = process_bcs(fname, oprefix, t,
 										 chunksize, v,
-										 delete_input)
+										 delete_input,
+								graph,
+								short,
+								chemistry,
+								freads)
 
 	elif mode == 'process_bcs':
-		fname = process_bcs(fnames, oprefix, kit, t,
+		fname = process_bcs(fnames, oprefix, t,
 									 chunksize, v,
-									 delete_input)
+									 delete_input,
+							graph,
+							short,
+							chemistry,
+							freads)
 
 	elif mode == 'score_linkers':
 		score(fastq, oprefix, t,
 						  chunksize, v,
-						  delete_input)
+						  delete_input,
+			  short,
+			  chemistry)
 
 if __name__ == '__main__': main()

@@ -3,7 +3,7 @@ import seaborn as sns
 import pandas as pd
 import math
 import numpy as np
-# from utils import *
+
 
 def plot_hist(x, **kwargs):
 	ax = sns.histplot(x, binwidth=1)
@@ -12,16 +12,20 @@ def plot_mm_lines(x, **kwargs):
 	col = x.unique().tolist()[0]
 	# linker 1
 	if 'l1' in col:
-		mismatch_lines = [22, 21, 20, 19]
+		#mismatch_lines = [22, 21, 20, 19]
+		mismatch_lines = [30, 29, 28, 27]
 	# linker 2
 	elif 'l2' in col:
 		mismatch_lines = [30, 29, 28, 27]
 	for l in mismatch_lines:
 		plt.axvline(l, color='k', linestyle='-', linewidth=1)
 
-def plot_linker_scores(df, oprefix):
+def plot_linker_scores(df, oprefix, short):
 
-	val_vars = ['l1_score', 'l2_score', 'l1_rc_score', 'l2_rc_score']
+	if short:
+		val_vars = ['l1_score','l2_score']
+	else:
+		val_vars = ['l1_score', 'l2_score', 'l1_rc_score', 'l2_rc_score']
 	cols = ['index'] + val_vars
 	temp = df[cols].melt(id_vars='index', value_vars=val_vars)
 
@@ -34,21 +38,9 @@ def plot_linker_scores(df, oprefix):
 
 	plt.clf()
 
-def plot_linker_dists(df, oprefix, xlim=None):
-	"""
-	Plot a histogram of the distance from the end of each read that
-	each linker is
-	"""
-	for l in ['l1_dist', 'l2_dist']:
-		ax = sns.displot(df, x=l, kind='hist', binwidth=5)
-		if xlim:
-			_ = ax.set(xlim=(0,xlim))
-		fname = '{}_{}.png'.format(oprefix, l)
-		plt.savefig(fname)
-
 # plot heatmap of number of reads recovered with different linker
 # mismatch allowances
-def plot_linker_heatmap(df, oprefix, how='integer'):
+def plot_linker_heatmap(df, oprefix, short, how='integer'):
 
 	if how == 'integer':
 		m = [0, 1, 2, 3, 4, 5]
@@ -57,11 +49,17 @@ def plot_linker_heatmap(df, oprefix, how='integer'):
 
 		for i in m: # l1
 			for j in m: # l2
-				l1_min = 22-i
+				if short:
+					l1_min = 30-i
+				else:
+					l1_min = 22-i
 				l2_min = 30-j
 				fwd_df = df.loc[(df.l1_score>=l1_min)&(df.l2_score>=l2_min)]
-				rev_df = df.loc[(df.l1_rc_score>=l1_min)&(df.l2_rc_score>=l2_min)]
-				one_dir_reads = df.loc[list(set(fwd_df.index)^set(rev_df.index))]
+				if not short:
+					rev_df = df.loc[(df.l1_rc_score>=l1_min)&(df.l2_rc_score>=l2_min)]
+					one_dir_reads = df.loc[list(set(fwd_df.index)^set(rev_df.index))]
+				else:
+					one_dir_reads = df.loc[list(set(fwd_df.index))]
 				m_df.at[i, j] = len(one_dir_reads.index)
 		ax = sns.heatmap(m_df, annot=True)
 		_ = ax.set(xlabel='Mismatches/indels allowed in l2',
@@ -76,11 +74,17 @@ def plot_linker_heatmap(df, oprefix, how='integer'):
 
 		for i in p: # l1
 			for j in p: # l2
-				l1_min = 22-math.ceil((22/100)*i)
+				if short:
+					l1_min = 30-math.ceil((30/100)*i)
+				else:
+					l1_min = 22-math.ceil((22/100)*i)
 				l2_min = 30-math.ceil((30/100)*j)
 				fwd_df = df.loc[(df.l1_score>=l1_min)&(df.l2_score>=l2_min)]
-				rev_df = df.loc[(df.l1_rc_score>=l1_min)&(df.l2_rc_score>=l2_min)]
-				one_dir_reads = df.loc[list(set(fwd_df.index)^set(rev_df.index))]
+				if not short:
+					rev_df = df.loc[(df.l1_rc_score>=l1_min)&(df.l2_rc_score>=l2_min)]
+					one_dir_reads = df.loc[list(set(fwd_df.index)^set(rev_df.index))]
+				else:
+					one_dir_reads = df.loc[list(set(fwd_df.index))]
 				p_df.at[i, j] = len(one_dir_reads.index)
 
 		ax = sns.heatmap(p_df, annot=True)
@@ -94,7 +98,7 @@ def plot_linker_heatmap(df, oprefix, how='integer'):
 	plt.savefig(fname, bbox_inches='tight')
 	plt.clf()
 
-def plot_read_length(df, oprefix, xlim=None):
+def plot_read_length(df, oprefix):
 	"""
 	Plot read length distributions after trimming bc / linker
 	construct from reads.
@@ -109,8 +113,7 @@ def plot_read_length(df, oprefix, xlim=None):
 	ax.set(xlabel='Read length', ylabel='Number of reads')
 	fname = '{}_read_length_dist.png'.format(oprefix)
 	# plt.xlim((0,10000))
-	if xlim:
-		plt.xlim((0,xlim))
+	plt.xlim((0,4000))
 	plt.savefig(fname)
 	plt.clf()
 
@@ -131,7 +134,7 @@ def plot_knee_plot(df, oprefix, kind):
 			linewidth=2)
 	ax = plt.gca()
 	ax.set_xscale('log')
-	ax.set_xlabel('Ranked cells by # UMIs')
+	ax.set_xlabel('Ranked cells by # UMIs (logscale)')
 	ax.set_ylabel('# UMIs (logscale)')
 	ax.set_title(kind)
 	if kind == 'Pre-correction':

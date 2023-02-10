@@ -10,12 +10,7 @@ import math
 import sys
 import argparse
 import os
-import pdb
-import gzip
-import json
-from collections import defaultdict
-from plotting import *
-
+from itertools import islice
 
 ###################################################################################
 ############################### Helper functions ##################################
@@ -23,77 +18,64 @@ from plotting import *
 
 	# https://stackoverflow.com/questions/25962114/how-do-i-read-a-large-csv-file-with-pandas
 
-# from the parse pipeline
-def load_bc_dict(fname, verb=False):
-	""" Load barcode edit dict
-	"""
-	with open(fname, 'r') as INFILE:
-	    bc_dict = json.load(INFILE)
-	    if verb:
-	        print(f"Loaded {fname}")
-
-	# Top level has int keys and holds default dicts
-	new_dict = {}
-	for k, v in bc_dict.items():
-	    new_dict[int(k)] = defaultdict(list, bc_dict[k])
-
-	return new_dict
-
-def get_bc_round_set(kit):
-	KIT_INT_DICT = {'custom_1': 1, 'WT': 48, 'WT_mini': 28, 'WT_mega': 96}
-	kit_n = KIT_INT_DICT[kit]
-	if kit_n == 12:
-		bc_round_set = [['bc1','n24_v4'], ['bc2','v1'], ['bc3','v1']]
-	if kit_n == 96:
-		bc_round_set = [['bc1','n192_v4'], ['bc2','v1'], ['bc3','v1']]
-	if kit_n == 48:
-		bc_round_set = [['bc1','v2'], ['bc2','v1'], ['bc3','v1']]
-	return bc_round_set
-
-def load_barcodes(kit):
+def load_barcodes(chemistry):
 	"""
 	Load the barcodes. Adapted from the Parse biosciences pipeline.
 
 	Returns:
-		edit_dict_set (dict): Dict for barcode<1,2,3> with
+		bc#_edit_dict (dict): Dict for barcode<1,2,3> with
 			key: query bc
 			item: corrected bc
 	"""
 	pkg_path = os.path.dirname(__file__)
 	pkg_path = '/'.join(pkg_path.split('/')[:-1])
+	with open(pkg_path + '/barcodes/bc_dict_v1.pkl', 'rb') as f:
+		edit_dict_v1 = pickle.load(f)
+	with open(pkg_path + '/barcodes/bc_dict_v2.pkl', 'rb') as f:
+		edit_dict_v2 = pickle.load(f)
 
-	bc_round_set = get_bc_round_set(kit)
+	bc1_edit_dict = edit_dict_v1
+	bc2_edit_dict = edit_dict_v1
+	if chemistry == 'v1':
+		bc3_edit_dict = edit_dict_v1
+	else:
+		bc3_edit_dict = edit_dict_v2
 
-	edit_dict_set = {}
-	for entry in bc_round_set:
-		bc = entry[0]
-		ver = entry[1]
-		fname = pkg_path+'/barcodes/bc_dict_{}.json'.format(ver)
-		edit_dict = load_bc_dict(fname)
-		edit_dict_set[bc] = edit_dict
-
-	return edit_dict_set
+	return bc1_edit_dict, bc2_edit_dict, bc3_edit_dict
 
 # From the Parse biosciences pipeline
-def load_barcodes_set(kit):
+def load_barcodes_set(chemistry):
 	"""
 	Load the barcodes. Adapted from the Parse biosciences pipeline.
 	"""
 	pkg_path = os.path.dirname(__file__)
 	pkg_path = '/'.join(pkg_path.split('/')[:-1])
+	# pkg_path = '/Users/fairliereese/Documents/programming/mortazavi_lab/data/211206_lr_splitpipe_speedup/'
 
-	bc_round_set = get_bc_round_set(kit)
+	with open(pkg_path + '/barcodes/bc_dict_v1.pkl', 'rb') as f:
+		edit_dict_v1 = pickle.load(f)
+	with open(pkg_path + '/barcodes/bc_dict_v2.pkl', 'rb') as f:
+		edit_dict_v2 = pickle.load(f)
 
-	bc_set = {}
-	for entry in bc_round_set:
-		bc = entry[0]
-		ver = entry[1]
-		fname = pkg_path + '/barcodes/bc_data_{}.csv'.format(ver)
-		bc_df = pd.read_csv(fname)
-		bcs = set(bc_df.sequence.tolist())
-		bc_set[bc] = bcs
+	# read in barcode sequences
+	bc_8nt_v1 = pd.read_csv(pkg_path + '/barcodes/bc_8nt_v1.csv',names=['barcode'],index_col=0).barcode.values
+	bc_8nt_v2 = pd.read_csv(pkg_path + '/barcodes/bc_8nt_v2.csv',names=['barcode'],index_col=0).barcode.values
+	bc1_edit_dict = edit_dict_v1
+	bc2_edit_dict = edit_dict_v1
+	bc3_edit_dict = edit_dict_v2
+	bc_8nt_set_dict = {}
+	bc_8nt_set_dict['bc1'] = set(bc_8nt_v1)
+	bc_8nt_set_dict['bc2'] = set(bc_8nt_v1)
+	#Changed by Lucas Kuijpers
+	if chemistry == 'v1':
+		bc_8nt_set_dict['bc3'] = set(bc_8nt_v1)
+	else:
+		bc_8nt_set_dict['bc3'] = set(bc_8nt_v2)
 
-	return bc_set
+	bc_8nt_bc1 = bc_8nt_set_dict['bc1']
+	bc_8nt_bc2 = bc_8nt_set_dict['bc2']
+	bc_8nt_bc3 = bc_8nt_set_dict['bc3']
+	return list(bc_8nt_bc1), list(bc_8nt_bc2), list(bc_8nt_bc3)
 
 def rev_comp(s):
 	"""
@@ -112,17 +94,32 @@ def rev_comp(s):
 	rev_comp = ''.join(rev_comp)
 	return rev_comp
 
-def get_linkers():
+def get_linkers(short, chemistry):
 	"""
 	Get the Parse biosciences linker sequences
 	"""
+	#Changed by Lucas Kuijpers
 	# linker sequence between barcodes 1 and 2
-	l1_rc = 'CCACAGTCTCAAGCACGTGGAT'
-	l1 = rev_comp(l1_rc)
-	# linker sequence between barcodes 2 and 3
-	l2_rc = 'AGTCGTACGCCGATGCGAAACATCGGCCAC'
-	l2 = rev_comp(l2_rc)
-	return l1, l1_rc, l2, l2_rc
+	if short and chemistry == 'v1':
+		l1 = 'ATCCACGTGCTTGAGAGGCCAGAGCATTCG'
+		l2 = 'GTGGCCGATGTTTCGCATCGGCGTACGACT'
+		return l1, l2
+	elif short and chemistry == 'v2':
+		l1 = 'ATCCACGTGCTTGAGACTGTGG'
+		l2 = 'GTGGCCGATGTTTCGCATCGGCGTACGACT'
+		return l1, l2
+	elif chemistry == 'v1':
+		l1 = 'ATCCACGTGCTTGAGAGGCCAGAGCATTCG'
+		l2 = 'GTGGCCGATGTTTCGCATCGGCGTACGACT'
+		l1_rc = rev_comp(l1)
+		l2_rc = rev_comp(l2)
+		return l1, l1_rc, l2, l2_rc
+	elif chemistry == 'v2':
+		l1 = 'ATCCACGTGCTTGAGACTGTGG'
+		l2 = 'GTGGCCGATGTTTCGCATCGGCGTACGACT'
+		l1_rc = rev_comp(l1)
+		l2_rc = rev_comp(l2)
+		return l1, l1_rc, l2, l2_rc
 
 def get_min_edit_dists(bc, edit_dict, max_d=3):
 	"""
@@ -152,55 +149,6 @@ def get_min_edit_dists(bc, edit_dict, max_d=3):
 		bc_matches = edit_dict[3][bc]
 	return bc_matches, edit_dist
 
-def get_linker_dists(df, strand):
-	"""
-	Get the distance of each linker from the end of the read
-
-	Parameters:
-		df (pandas DataFrame): DF of each read w/ linker positions
-		strand (str): {'+', '-'}
-
-	Returns:
-		df (pandas DataFrame): Same DF as input with `linker_dist`
-	"""
-	if strand == '+':
-		df['l1_dist'] = df['l1_stop']
-		df['l2_dist'] = df['l2_stop']
-	elif strand == '-':
-		df['l1_dist'] = df['read_len']-df['l1_start']
-		df['l2_dist'] = df['read_len']-df['l2_start']
-	return df
-
-def get_fwd_rev(df):
-	"""
-	Split a DF into two; one for each strand
-
-	Parameters:
-		df (pandas DataFrame): DF w/ `l_dir` strand info
-
-	Returns:
-		fwd (pandas DataFrame): DF for + strand reads
-		ref (pandas DataFrame): DF for - strand reads
-	"""
-	fwd = df.loc[df.l_dir=='+'].copy(deep=True)
-	rev = df.loc[df.l_dir=='-'].copy(deep=True)
-	return fwd, rev
-
-###################################################################################
-############################### Plotting ##################################
-###################################################################################
-def plot_post_score_plots(df, oprefix):
-	"""
-	Plot relevant plots after running score_linkers
-	"""
-	plot_linker_scores(df, oprefix)
-	plot_linker_heatmap(df, oprefix, how='integer')
-	plot_linker_heatmap(df, oprefix, how='proportion')
-	plot_read_length(df, oprefix+'_raw')
-	plot_read_length(df, oprefix+'_raw_10k', xlim=10000)
-	plot_read_length(df, oprefix+'_raw_4k', xlim=4000)
-	plot_read_length(df, oprefix+'_raw_1k', xlim=4000)
-
 ###################################################################################
 ############################### Processing steps ##################################
 ###################################################################################
@@ -227,52 +175,43 @@ def fastq_to_df(fname, oprefix, verbose=1):
 	strands = []
 	i = 1
 	ofile = '{}_table.tsv'.format(oprefix)
+	with open(fname, 'r') as f:
+		while True:
+			read_name = f.readline().strip()
+			read_name = read_name[1:]
+			if len(read_name)==0:
+				break
+			seq = f.readline().strip()
+			strand = f.readline().strip()
+			qual = f.readline()
+			seqs.append(seq)
+			strands.append(strand)
+			read_names.append(read_name)
 
-	# read differently depending on if it's gzipped
-	if fname.endswith('.gz'):
-		print(fname)
-		f = gzip.open(fname, 'rt')
-	else:
-		f = open(fname, 'r')
+			# print out notification and write to file
+			chunksize = 100000
+			if i % chunksize == 0 and i != 1 :
+				if verbose == 2:
+					print('Processed {} reads'.format(i))
 
-	while True:
-		read_name = f.readline().strip()
-		read_name = read_name[1:]
-		if len(read_name)==0:
-			break
-		seq = f.readline().strip()
-		strand = f.readline().strip()
-		qual = f.readline()
-		seqs.append(seq)
-		strands.append(strand)
-		read_names.append(read_name)
+				# pack everything into a dataframe
+				df = pd.DataFrame(seqs)
+				df.columns = ['seq']
+				df['read_name'] = read_names
+				df['strand'] = strands
 
-		# print out notification and write to file
-		chunksize = 100000
-		if i % chunksize == 0 and i != 1 :
-			if verbose == 2:
-				print('Processed {} reads'.format(i))
-
-			# pack everything into a dataframe
-			df = pd.DataFrame(seqs)
-			df.columns = ['seq']
-			df['read_name'] = read_names
-			df['strand'] = strands
-			df['read_len'] = df.seq.str.len()
-
-			# first write
-			if i == chunksize:
-				df.to_csv(ofile, sep='\t', index=False)
-				read_names = []
-				strands = []
-				seqs = []
-			else:
-				df.to_csv(ofile, sep='\t', header=None, index=False, mode='a')
-				read_names = []
-				strands = []
-				seqs = []
-		i += 1
-	f.close()
+				# first write
+				if i == chunksize:
+					df.to_csv(ofile, sep='\t', index=False)
+					read_names = []
+					strands = []
+					seqs = []
+				else:
+					df.to_csv(ofile, sep='\t', header=None, index=False, mode='a')
+					read_names = []
+					strands = []
+					seqs = []
+			i += 1
 
 	# cleanup
 	if len(seqs) > 0:
@@ -280,18 +219,15 @@ def fastq_to_df(fname, oprefix, verbose=1):
 		df.columns = ['seq']
 		df['read_name'] = read_names
 		df['strand'] = strands
-		df['read_len'] = df.seq.str.len()
-		if i > chunksize:
-			df.to_csv(ofile, sep='\t', header=None, index=False, mode='a')
-		else:
-			df.to_csv(ofile, sep='\t', index=False)
-
+		df.to_csv(ofile, sep='\t', header=None, index=False, mode='a')
 
 	return ofile
 
 def score_linkers(fname, oprefix, t=1,
 				 verbose=1, chunksize=10**5,
-				 delete_input=False):
+				 delete_input=False,
+				  short=False,
+				  chemistry='v2'):
 	"""
 	Find and report highest linker scores in each read.
 
@@ -310,9 +246,14 @@ def score_linkers(fname, oprefix, t=1,
 		ofile (str): Name of output file
 	"""
 
-	l1, l1_rc, l2, l2_rc = get_linkers()
-	l_seqs = [l1, l1_rc, l2, l2_rc]
-	l_prefs = ['l1', 'l1_rc', 'l2', 'l2_rc']
+	if short:
+		l1, l2 = get_linkers(short, chemistry)
+		l_seqs = [l1, l2]
+		l_prefs = ['l1','l2']
+	else:
+		l1, l1_rc, l2, l2_rc = get_linkers(short, chemistry)
+		l_seqs = [l1, l1_rc, l2, l2_rc]
+		l_prefs = ['l1', 'l1_rc', 'l2', 'l2_rc']
 
 	# loop through chunks of the file
 	i = 0
@@ -336,8 +277,7 @@ def score_linkers(fname, oprefix, t=1,
 
 		i += chunksize
 		if verbose == 2:
-			ts = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
-			print('[{}] Found linker scores for {} reads'.format(ts, i))
+			print('Found linker scores for {} reads'.format(i))
 
 	# delete input file
 	if delete_input:
@@ -349,9 +289,10 @@ def align_linkers(fname, oprefix,
 						  t=1, chunksize=10**5,
 						  l1_m=None, l2_m=None,
 						  l1_p=None, l2_p=None,
-						  max_dist=200, max_len=10000,
 						  keep_dupes=False, verbose=1,
-						  delete_input=False):
+						  delete_input=False,
+				  short=False,
+				  chemistry='v2'):
 	"""
 	Find indices of highest-scoring linker in each read.
 
@@ -367,8 +308,6 @@ def align_linkers(fname, oprefix,
 		l2_m (int): Number of allowable mismatches in linker 2
 		l1_p (float): Proportion of allowable mismatches in linker 1
 		l2_p (float): Proportion of allowable mismatches in linker 2
-		max_dist (int): Max. distance that a linker can be from the end of the read
-		max_len (int): Max. length of a read to be considered
 		keep_dupes (bool):
 		chunksize (int): Number of lines to process at a time
 		delete_input (bool): Whether or not to delete input file
@@ -377,18 +316,22 @@ def align_linkers(fname, oprefix,
 	Returns:
 		ofile (str): Name of output file
 	"""
-	print('in align_linkers, using {} threads'.format(t))
-
 	# calculate lowest scores viable for l1 and l2
 	if l1_m and l2_m:
 		if float(l1_m).is_integer() and float(l2_m).is_integer():
-			l1_min = 22-l1_m
+			if chemistry == 'v1':
+				l1_min = 30-l1_m
+			else:
+				l1_min = 22-l1_m
 			l2_min = 30-l2_m
 		else:
 			raise TypeError('l1_m and l2_m must be integers.')
 	elif l1_p and l2_p:
 		if isnumeric(l1_p) and isnumeric(l2_p):
-			l1_min = 22-math.ceil((22/100)*i)
+			if chemistry == 'v1':
+				l1_min = 30-math.ceil((30/100)*i)
+			else:
+				l1_min = 22-math.ceil((22/100)*i)
 			l2_min = 30-math.ceil((30/100)*j)
 		else:
 			raise TypeError('l1_p and l2_p must be numeric.')
@@ -402,16 +345,6 @@ def align_linkers(fname, oprefix,
 	ofile = '{}_seq_linker_alignments.tsv'.format(oprefix)
 	for df in pd.read_csv(fname, chunksize=chunksize, sep='\t'):
 
-		# add read length
-		df['read_len'] = df.seq.str.len()
-
-		# enforce max read length
-		if max_len:
-			df = df.loc[df.read_len < max_len]
-			if verbose == 2:
-
-				print('Found {} reads < {}bp long'.format(len(df.index), max_len))
-
 		# init some dfs
 		fwd_df = pd.DataFrame()
 		rev_df = pd.DataFrame()
@@ -421,8 +354,9 @@ def align_linkers(fname, oprefix,
 
 		# find viable reads and format into a new dataframe
 		fwd_df = df.loc[(df.l1_score>=l1_min)&(df.l2_score>=l2_min)]
-		rev_df = df.loc[(df.l1_rc_score>=l1_min)&(df.l2_rc_score>=l2_min)]
-		both_df = df.loc[list(set(fwd_df.index)&set(rev_df.index))]
+		if not short:
+			rev_df = df.loc[(df.l1_rc_score>=l1_min)&(df.l2_rc_score>=l2_min)]
+			both_df = df.loc[list(set(fwd_df.index)&set(rev_df.index))]
 
 		if verbose == 2:
 			print('Found {} reads with linkers found in the fwd direction'.format(len(fwd_df.index)))
@@ -431,7 +365,8 @@ def align_linkers(fname, oprefix,
 
 		# first remove those that are duplicated across fwd and rev dfs
 		fwd_df = fwd_df.loc[~fwd_df.index.isin(both_df.index)]
-		rev_df = rev_df.loc[~rev_df.index.isin(both_df.index)]
+		if not short:
+			rev_df = rev_df.loc[~rev_df.index.isin(both_df.index)]
 
 		if verbose == 2:
 			print('Number of fwd reads after removing reads from both dirs: {}'.format(len(fwd_df.index)))
@@ -439,7 +374,8 @@ def align_linkers(fname, oprefix,
 
 		# then assign orientation of found linkers
 		fwd_df['l_dir'] = '+'
-		rev_df['l_dir'] = '-'
+		if not short:
+			rev_df['l_dir'] = '-'
 
 		# tie break those that we can that found forward and reverse linkers
 		# with scores over the threshold using the sum of scores
@@ -483,42 +419,31 @@ def align_linkers(fname, oprefix,
 
 		df = pd.concat(dfs)
 
-		# get last n bp of each read to search for linkers
-		if max_dist:
-			fwd_df, rev_df = get_fwd_rev(df)
-			fwd_df['short_seq'] = df.seq.str.slice(stop=max_dist)
-			rev_df['short_seq'] = df.seq.str.slice(start=-1*max_dist)
-
-			df = pd.concat([fwd_df, rev_df], axis=0)
-		else:
-			df['short_seq'] = df.seq
-		df['short_seq_len'] = df.short_seq.str.len()
+		n_alignments += len(df.index)
 
 		# find the start and end of each alignment for the valid reads
-		l1, l1_rc, l2, l2_rc = get_linkers()
-
-		if t == 1:
-			l_df = df.apply(align_linkers_x, args=(l1, l2, l1_rc, l2_rc, max_dist),
-				axis=1, result_type='expand')
+		if short:
+			l1, l2 = get_linkers(short, chemistry)
 		else:
-			pandarallel.initialize(nb_workers=t, verbose=1)
-			l_df = df.parallel_apply(align_linkers_x, args=(l1, l2, l1_rc, l2_rc, max_dist),
-				axis=1, result_type='expand')
+			l1, l1_rc, l2, l2_rc = get_linkers(short, chemistry)
 
-		# merge linker position information w/ df
-		df.drop([c for c in df.columns if 'score' in c], axis=1, inplace=True)
-		df = df.merge(l_df, how='left', on='read_name')
-
-		# re-enforce mismatch cutoff
-		df = df.loc[(df.l1_score >= l1_min)&(df.l2_score >= l2_min)]
-		if verbose == 2:
-			print('Found {} reads w/ linkers in last {}bp'.format(len(df.index), max_dist))
-
-		# drop short seq stuff
-		df.drop(['short_seq', 'short_seq_len'], axis=1, inplace=True)
-
-		# increment our read count for reads w/ valid linkers
-		n_alignments += len(df.index)
+		if short:
+			if t == 1:
+				l_df = df.apply(align_linkers_x, args=(l1, l2),
+								axis=1, result_type='expand')
+			else:
+				pandarallel.initialize(nb_workers=t, verbose=1)
+				l_df = df.parallel_apply(align_linkers_x, args=(l1, l2),
+										 axis=1, result_type='expand')
+		else:
+			if t == 1:
+				l_df = df.apply(align_linkers_x, args=(l1, l2, l1_rc, l2_rc),
+					axis=1, result_type='expand')
+			else:
+				pandarallel.initialize(nb_workers=t, verbose=1)
+				l_df = df.parallel_apply(align_linkers_x, args=(l1, l2, l1_rc, l2_rc),
+					axis=1, result_type='expand')
+		df = pd.concat([df, l_df], axis=1)
 
 		# first write
 		if i == 0:
@@ -528,10 +453,9 @@ def align_linkers(fname, oprefix,
 
 		i += chunksize
 		if verbose == 2:
-			ts = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
-			print('[{}] Found linkers for {} reads'.format(ts, i))
+			print('Found linkers for {} reads'.format(i))
 
-	if verbose > 0:
+	if verbose < 0:
 		print('Found {} reads with valid linker combinations'.format(n_alignments))
 
 	# delete input file
@@ -597,14 +521,13 @@ def get_bcs_umis(fname, oprefix, t=1,
 
 	return ofile
 
-def get_perfect_bc_counts(fnames, kit, verbose=1):
+def get_perfect_bc_counts(fnames, chemistry, short, verbose=1):
 	"""
 	Count how many reads with valid barcodes within edit
 	distance 3 there are. Adapted from Parse biosciences.
 
 	Parameters:
 		fnames (list of str): Files to process
-		kit (str): {'WT', 'WT_mega', 'WT_mini'}
 		verbose (int): How much output to show
 			0: none
 			1: only QC statistics
@@ -620,23 +543,20 @@ def get_perfect_bc_counts(fnames, kit, verbose=1):
 	"""
 	reads_in_cells_thresh = 0.92
 
-	# bc_8nt_bc3, bc_8nt_bc2, bc_8nt_bc1 = load_barcodes_set(0
-	bc_set = load_barcodes_set(kit)
-	bc_8nt_bc1 = bc_set['bc1']
-	bc_8nt_bc2 = bc_set['bc2']
-	bc_8nt_bc3 = bc_set['bc3']
-
+	bc_8nt_bc3, bc_8nt_bc2, bc_8nt_bc1 = load_barcodes_set(chemistry=chemistry)
+	
+	cols = [15,16,17,18]
+	if short:
+		cols = [x - 2 for x in cols]
 	# load in just bcs from everything
-	# cnums = [15,16,17,18]
-	cnums = [14,15,16,17]
 	if type(fnames) == list:
 		df = pd.DataFrame()
 		for i, fname in enumerate(fnames):
-			   temp = pd.read_csv(fname, sep='\t', usecols=cnums)
+			   temp = pd.read_csv(fname, sep='\t', usecols=cols)
 			   df = pd.concat([df, temp])
 	else:
 		fname = fnames
-		df = pd.read_csv(fname, sep='\t', usecols=cnums)
+		df = pd.read_csv(fname, sep='\t', usecols=cols)
 
 	df['bc1_valid'] = df.bc1.isin(list(bc_8nt_bc1))
 	df['bc2_valid'] = df.bc2.isin(list(bc_8nt_bc2))
@@ -662,12 +582,12 @@ def get_perfect_bc_counts(fnames, kit, verbose=1):
 	return df, counts, count_threshold
 
 def correct_barcodes(fnames, oprefix,
-					 kit,
 					 counts, count_thresh,
 					 bc_edit_dist=3, t=1,
 					 chunksize=10**5,
 					 verbose=1,
-					 delete_input=False):
+					 delete_input=False,
+					 chemistry='v2'):
 	"""
 	Correct barcodes based on abundance of those already
 	present in the dataset and on a maximum edit distance.
@@ -675,7 +595,6 @@ def correct_barcodes(fnames, oprefix,
 	Parameters:
 		fnames (list of str): Files to process
 		oprefix (str): Where to save output
-		kit (str): Kit used {'WT', 'WT_mini', 'WT_mega'}
 		counts (pandas DataFrame): Output from get_perfect_bc_counts
 			with number of reads observed for each barcode
 		count_thresh (int): Minimum number of reads
@@ -693,10 +612,7 @@ def correct_barcodes(fnames, oprefix,
 		ofile (str): Name of output file
 	"""
 
-	edit_dict_set = load_barcodes(kit)
-	bc1_dict = edit_dict_set['bc1']
-	bc2_dict = edit_dict_set['bc2']
-	bc3_dict = edit_dict_set['bc3']
+	bc3_dict, bc2_dict, bc1_dict = load_barcodes(chemistry)
 
 	i = 0
 	n_corrected_bcs = 0
@@ -876,7 +792,8 @@ def flip_reads(fname, oprefix, t=1,
 
 def filter_dupe_umis(fname, oprefix, verbose=True,
 					 chunksize=10**5,
-					 delete_input=True):
+					 delete_input=True,
+					 short=False):
 	"""
 	Filters duplicate UMIs such that the longest read is kept
 
@@ -933,8 +850,19 @@ def filter_dupe_umis(fname, oprefix, verbose=True,
 		print('Number of reads before filtering dupe UMIs: {}'.format(len(df.index)))
 
 	# drop dupe UMI + bc combos for full len umis
-	inds = df.loc[df.umi_len == 10][['umi', 'bc']].drop_duplicates(keep='first').index.tolist()
-	inds += df.loc[df.umi_len != 10].index.tolist()
+	if short:
+		# we really dont need to keep read without UMI
+		df = df.loc[df.umi_len == 10]
+		#check if 'N' in UMI we dont want that shit
+		df['has_N'] = df.umi.apply(lambda x: 'N' in x)
+		#check if umi is homomer
+		df['homomer'] = df.umi.apply(lambda x: len(set(x)))
+		inds = df.loc[(df.has_N == False) & (df.homomer > 1)][['umi', 'bc']].drop_duplicates(keep='first').index.tolist()
+		df.drop(['has_N', 'homomer'], axis = 1, inplace=True)
+	else:
+		inds = df.loc[df.umi_len == 10][['umi', 'bc']].drop_duplicates(keep='first').index.tolist()
+		inds += df.loc[df.umi_len != 10].index.tolist()
+
 	df = df.loc[inds]
 
 	# remove unnecessary columns
@@ -966,10 +894,14 @@ def filter_dupe_umis(fname, oprefix, verbose=True,
 
 	return ofile
 
+#this functions needs to be able to access the Forward reads.
 # format/write fastq
 def write_fastq(fname, oprefix,
 				chunksize=10**5,
-				delete_input=False):
+				delete_input=False,
+				freads=None,
+				short=False,
+				verbose=1):
 	"""
 	Write a new fastq with cell barcode + umi info in each
 	read name
@@ -992,30 +924,87 @@ def write_fastq(fname, oprefix,
 	# output fastq
 	ofile = oprefix+'_demux.fastq'
 	ofile = open(ofile, 'w')
+	
+	print('step1')
+	
+	if short:
+		i = 0
+		#dictionaries seem to take too much memory, try lists and use indices
+		#read_dict = {}
+		read_names = []
+		cell_barcodes = []
+		for df in pd.read_csv(fname, chunksize=chunksize, sep='\t'):
+			# fixed filter_umi, so shouldnt have 'TypeError: float' here anymore
+			cell_barcodes += list(df.apply(lambda x: '_'.join([''.join([str(x.bc1),str(x.bc2),str(x.bc3)]),str(x.umi)]), axis=1))
+			#how to split by can depend on how the readname is put in the original .fastq file. if there are no reads in the final .fastq check here.
+			read_names += list(df.read_name.apply(lambda x: x.split(' ')[0]))
+			i += len(df.index)
+			print("Created read dictionary of {} reads".format(i))
+		
+		print('step2')
+		
+		if i == len(read_names) == len(cell_barcodes) and verbose > 1:
+			print('Created read dictionary of cells')
+			print('Tagging cell BC to cDNA read')
+			
+		print('step3')
+		
+		reads = 0
+		missed = 0
+		with open(freads, 'r') as f:
+			print('step4.1')
+			while True:
+				batch = list(islice(f, 4))
+				if not batch:
+					break
+				
+				read_id = batch[0].strip("@")
+				#print(read_id) #bugTest
+				#print(read_names[0])
+				if read_id.split(' ')[0] in read_names:
+					index = read_names.index(read_id.split(' ')[0])
+					new_id = "@" + read_id.strip('\n') + ":" + cell_barcodes[index] + "\n"
+					ofile.write(new_id)
+					ofile.write(batch[1])
+					ofile.write(batch[2])
+					ofile.write(batch[3])
+					reads += 1
+				else:
+					missed += 1
+		
+		print('step4')
+		if verbose > 1:
+			print('Collected {} cell barcodes during analysis'.format(i)) # amount of reads with cell barcodes found in R2
+			print('Tagged {} cDNA reads with cell barcode'.format(reads)) # R1 reads that had a complementary R2 containing full cell barcode
+			print('{} reads did not contain a complete cell barcode'.format(missed)) # reads that have been excluded with the cell barcode extraction. can be inflated if read_id do not match in R1 and R2
+			print('{} reads were found to have a complete cell barcode but did not have a cDNA read'.format(i - reads)) #if a forward read did not have a complementary R1
+			
+		f.close()
+		ofile.close()
+	else:
+		i = 0
+		for df in pd.read_csv(fname, chunksize=chunksize, sep='\t'):
 
-	i = 0
-	for df in pd.read_csv(fname, chunksize=chunksize, sep='\t'):
+			# create the read name header with the bc and umi information
+			df.fillna(value='_', inplace=True)
+			ex_read_name = df.read_name.tolist()[0]
+			if ' ' in ex_read_name:
+				df.read_name = df.read_name.str.split(' ', n=1, expand=True)[0]
+			df['header'] = '@'+df.read_name+':'+df.bc1+'_'+df.bc2+'_'+df.bc3+'_'+df.umi
+			df = df[['header', 'seq']]
 
-		# create the read name header with the bc and umi information
-		df.fillna(value='_', inplace=True)
-		ex_read_name = df.read_name.tolist()[0]
-		if ' ' in ex_read_name:
-			df.read_name = df.read_name.str.split(' ', n=1, expand=True)[0]
-		df['header'] = '@'+df.read_name+':'+df.bc1+'_'+df.bc2+'_'+df.bc3+'_'+df.umi
-		df = df[['header', 'seq']]
+			# write the fastq
+			for ind, entry in df.iterrows():
+				try:
+					ofile.write(entry.header+'\n')
+				except:
+					print(entry.header)
 
-		# write the fastq
-		for ind, entry in df.iterrows():
-			try:
-				ofile.write(entry.header+'\n')
-			except:
-				print(entry.header)
+				ofile.write(entry.seq+'\n')
+				ofile.write('+\n')
+				ofile.write(''.join(['5' for i in range(len(entry.seq))])+'\n')
 
-			ofile.write(entry.seq+'\n')
-			ofile.write('+\n')
-			ofile.write(''.join(['5' for i in range(len(entry.seq))])+'\n')
-
-	ofile.close()
+		ofile.close()
 
 	# remove old file
 	os.remove(fname)
@@ -1056,7 +1045,7 @@ def score_linkers_x(x, l_seqs, l_prefs):
 		entry['{}_score'.format(pref)] = score
 	return entry
 
-def align_linkers_x(x, l1, l2, l1_rc, l2_rc, max_dist):
+def align_linkers_x(x, l1=None, l2=None, l1_rc=None, l2_rc=None):
 	"""
 	Function to find inds of linkers across rows of a dataframe
 
@@ -1066,68 +1055,58 @@ def align_linkers_x(x, l1, l2, l1_rc, l2_rc, max_dist):
 		l2 (str): Linker 2
 		l1_rc (str): Linker 1 reverse complement
 		l2_rc (str): Linker 2 reverse complement
-		max_dist (int): Max. dist from end of read to search for linkers
 
 	Returns:
 		entry (pandas Series): Row with linker alignment indices
 	"""
-
 	entry = {}
 
-	# forward or reverse search?
-	if x.l_dir == '-':
-		l1 = l1_rc
-		l2 = l2_rc
+	# forward or reverse search
+	if l1_rc != None and l2_rc != None:
+		if x.l_dir == '-':
+			l1 = l1_rc
+			l2 = l2_rc
 
 	# compute alignments for both linkers in the correct orientation
 	# use the default alignment
-	l1_a = pairwise2.align.localms(x.short_seq, l1,
+	l1_a = pairwise2.align.localms(x.seq, l1,
 				1, -1, -1, -1,
 				one_alignment_only=True)
-	l2_a = pairwise2.align.localms(x.short_seq, l2,
+	l2_a = pairwise2.align.localms(x.seq, l2,
 				1, -1, -1, -1,
 				one_alignment_only=True)
 
-	# grab start, end, score of each linker
-	l1_start = l1_a[0].start
+	# grab start and end of each linker
+	try:
+		l1_start = l1_a[0].start
+	except:
+		print('REEEEE')
+		print(x.read_name)
+		raise ValueError('REEEE')
 	l1_stop = l1_a[0].end
-	l1_score = l1_a[0].score
 	l2_start = l2_a[0].start
 	l2_stop = l2_a[0].end
-	l2_score = l2_a[0].score
 
 	# calculate some metrics
 	l1_len = l1_stop-l1_start
 	l2_len = l2_stop-l2_start
+
 	if x.l_dir == '+':
 		bc2_len = l1_start-l2_stop
-	elif x.l_dir == '-':
-		bc2_len = l2_start-l1_stop
+	elif l1_rc != None and l2_rc != None:
+		if x.l_dir == '-':
+			bc2_len = l2_start-l1_stop
 	else:
 		bc2_len = np.nan
 
 	# construct an entry
-	entry['read_name'] = x.read_name
-
 	entry['l1_start'] = l1_start
 	entry['l1_stop'] = l1_stop
-	entry['l1_score'] = l1_score
-	entry['l1_len'] = l1_len
-
 	entry['l2_start'] = l2_start
 	entry['l2_stop'] = l2_stop
-	entry['l2_score'] = l2_score
+	entry['l1_len'] = l1_len
 	entry['l2_len'] = l2_len
-
 	entry['bc2_len'] = bc2_len
-
-	# correct starts and ends if we're only looking at last n
-	# bp of each read
-	if max_dist:
-		if x.l_dir == '-' and x.short_seq_len == max_dist:
-			for c in ['l1_start', 'l1_stop',
-				  'l2_start', 'l2_stop']:
-				entry[c] = (x.read_len-x.short_seq_len)+entry[c]
 
 	return entry
 

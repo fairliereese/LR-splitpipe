@@ -1,15 +1,12 @@
 import pandas as pd
 import argparse
 import os
-from utils import *
 
 def get_args():
 	parser = argparse.ArgumentParser()
 
 	parser.add_argument('-s', dest='samfile',
 		help='SAM file with Split-seq barcode+UMI information in the read name')
-	parser.add_argument('-k', dest='kit',
-		help='Kit used {WT, WT_mini, WT_mega}')
 	parser.add_argument('--merge_primers', dest='merge_primers',
 		default=False, action='store_true',
 		help='Merge reads that come from the same cell from different priming strategies')
@@ -22,29 +19,20 @@ def get_args():
 	args = parser.parse_args()
 	return args
 
-def get_bc1_matches(kit):
-    pkg_path = os.getcwd()
-    # pkg_path = '/'.join(pkg_path.split('/')[:-1])
-    bc_round_set = get_bc_round_set('WT')
+def get_bc1_matches():
+	pkg_path = os.path.dirname(__file__)
+	pkg_path = '/'.join(pkg_path.split('/')[:-1])
+	bc_file = pkg_path+'/barcodes/bc_8nt_v2.csv'
+	bc_df = pd.read_csv(bc_file, index_col=0, names=['bc'])
+	bc_df['well'] = [i for i in range(0, 48)]+[i for i in range(0, 48)]
+	bc_df['primer_type'] = ['dt' for i in range(0, 48)]+['randhex' for i in range(0, 48)]
 
-    # determine file to use
-    for entry in bc_round_set:
-        if entry[0] == 'bc1':
-            ver = entry[1]
+	# pivot on well to get df that matches bcs with one another from the same well
+	bc_df = bc_df.pivot(index='well', columns='primer_type', values='bc')
+	bc_df = bc_df.rename_axis(None, axis=1).reset_index()
+	bc_df.rename({'dt': 'bc1_dt', 'randhex': 'bc1_randhex'}, axis=1, inplace=True)
 
-    # read in and restructure such that each dt bc is
-    # matched with its randhex partner from the same well
-    fname = pkg_path+'/barcodes/bc_data_{}.csv'.format(ver)
-    df = pd.read_csv(fname)
-    df.loc[df.well.duplicated(keep=False)].sort_values(by='well')
-    drop_cols = ['bci', 'uid', 'type']
-    bc1_dt = df.loc[df['type'] == 'T'].drop(drop_cols, axis=1)
-    bc1_dt.rename({'sequence': 'bc1_dt'}, axis=1, inplace=True)
-    bc1_randhex = df.loc[df['type'] == 'R'].drop(drop_cols, axis=1)
-    bc1_randhex.rename({'sequence': 'bc1_randhex'}, axis=1, inplace=True)
-    bc_df = bc1_dt.merge(bc1_randhex, on='well')
-
-    return bc_df
+	return bc_df
 
 def get_read_info(line):
 	''' From a line in a sam file, returns the read name,
@@ -63,14 +51,13 @@ def get_read_info(line):
 def main():
 	args = get_args()
 	samfile = args.samfile
-	kit = args.kit
 	oprefix = args.oprefix
 	suff = args.suff
 
 	merge_primers = args.merge_primers
 
 	if merge_primers:
-		bc_df = get_bc1_matches(kit)
+		bc_df = get_bc1_matches()
 		fname = '{}_merged_primers.sam'.format(oprefix)
 		print(bc_df.head())
 	else:

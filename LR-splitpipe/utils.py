@@ -136,11 +136,15 @@ def get_min_edit_dists(bc, edit_dict, max_d=3):
 		max_d (int): Edit distance
 
 	Returns:
-		bc_matches
-		edit_dist
+		bc_matches (list of str): List of bcs that the
+			input bc matches
+		edit_dist (int): Edit dist that bcs were found
 	"""
+	# first, do we get any perfect matches?
 	bc_matches = edit_dict[0][bc]
 	edit_dist = 0
+
+	#
 	if (len(bc_matches)==0) and (max_d>=1):
 		edit_dist+=1
 		bc_matches = edit_dict[1][bc]
@@ -1197,7 +1201,10 @@ def correct_bcs_x(x,
 	bc2_matches,edit_dist2  = get_min_edit_dists(bc2,bc2_dict,max_d=bc_edit_dist)
 	bc3_matches,edit_dist3  = get_min_edit_dists(bc3,bc3_dict,max_d=bc_edit_dist)
 
-	# Check if any barcode matches have a counts above the threshold
+	# check if any barcode matches have a counts above the threshold
+
+	# if the output edit dist is 0 for all, the bc_matches
+	# list is len() == 0 and we can just take those bcs
 	if 0 == edit_dist1 == edit_dist2 == edit_dist3:
 		bc1 = bc1_matches[0]
 		bc2 = bc2_matches[0]
@@ -1212,10 +1219,16 @@ def correct_bcs_x(x,
 						print(bc1_m)
 						print(bc2_m)
 						print(bc3_m)
+
+					# for non perfect barcode counts, check if each valid barcode
+					# is present in the parent, uncorrected bc dataframe
 					try:
 						cur_counts = counts.loc[(bc1_m,bc2_m,bc3_m)]
 					except:
 						cur_counts = 0
+					# if the number of reads w/ perfect bcs
+					# that match the current query that exceeds a certain
+					# number
 					if cur_counts>count_thresh:
 						bc1_fixed = bc1_m
 						bc2_fixed = bc2_m

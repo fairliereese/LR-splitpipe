@@ -23,7 +23,7 @@ def get_args():
 	return args
 
 def get_bc1_matches(kit):
-    pkg_path = os.path.dirname(__file__)
+    pkg_path = os.path.dirname(os.path.dirname(__file__))
     # pkg_path = '/'.join(pkg_path.split('/')[:-1])
     bc_round_set = get_bc_round_set('WT')
 

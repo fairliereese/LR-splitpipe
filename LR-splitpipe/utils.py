@@ -39,7 +39,7 @@ def load_bc_dict(fname, verb=False):
 
 	return new_dict
 
-def get_bc_round_set(kit):
+def get_bc_round_set(kit, chemistry):
 	KIT_INT_DICT = {'custom_1': 1, 'WT': 48, 'WT_mini': 28, 'WT_mega': 96}
 	kit_n = KIT_INT_DICT[kit]
 	if kit_n == 12:
@@ -48,9 +48,13 @@ def get_bc_round_set(kit):
 		bc_round_set = [['bc1','n192_v4'], ['bc2','v1'], ['bc3','v1']]
 	if kit_n == 48:
 		bc_round_set = [['bc1','v2'], ['bc2','v1'], ['bc3','v1']]
+
+	if kit == 'WT' and chemistry == 'v2':
+		bc_round_set = [['bc1', 'n96_v4'], ['bc2', 'v1'], ['bc3', 'v1']]
+
 	return bc_round_set
 
-def load_barcodes(kit):
+def load_barcodes(kit, chemistry):
 	"""
 	Load the barcodes. Adapted from the Parse biosciences pipeline.
 
@@ -62,7 +66,7 @@ def load_barcodes(kit):
 	pkg_path = os.path.dirname(__file__)
 	pkg_path = '/'.join(pkg_path.split('/')[:-1])
 
-	bc_round_set = get_bc_round_set(kit)
+	bc_round_set = get_bc_round_set(kit, chemistry)
 
 	edit_dict_set = {}
 	for entry in bc_round_set:
@@ -666,7 +670,7 @@ def get_perfect_bc_counts(fnames, kit, verbose=1):
 	return df, counts, count_threshold
 
 def correct_barcodes(fnames, oprefix,
-					 kit,
+					 kit, chemistry,
 					 counts, count_thresh,
 					 bc_edit_dist=3, t=1,
 					 chunksize=10**5,
@@ -680,6 +684,7 @@ def correct_barcodes(fnames, oprefix,
 		fnames (list of str): Files to process
 		oprefix (str): Where to save output
 		kit (str): Kit used {'WT', 'WT_mini', 'WT_mega'}
+		chemistry (str): Chemistry used {'v1', 'v2'}
 		counts (pandas DataFrame): Output from get_perfect_bc_counts
 			with number of reads observed for each barcode
 		count_thresh (int): Minimum number of reads
@@ -697,7 +702,7 @@ def correct_barcodes(fnames, oprefix,
 		ofile (str): Name of output file
 	"""
 
-	edit_dict_set = load_barcodes(kit)
+	edit_dict_set = load_barcodes(kit, chemistry)
 	bc1_dict = edit_dict_set['bc1']
 	bc2_dict = edit_dict_set['bc2']
 	bc3_dict = edit_dict_set['bc3']

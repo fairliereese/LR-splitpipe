@@ -134,7 +134,8 @@ def find_bcs(fastq, oprefix, t,
 
 	return fname
 
-def process_bcs(fnames, oprefix, kit, t,
+def process_bcs(fnames, oprefix,
+				  kit, chemistry, t,
 				  chunksize, verbosity,
 				  delete_input):
 
@@ -149,6 +150,7 @@ def process_bcs(fnames, oprefix, kit, t,
 		fnames (list of str): Files to process
 		oprefix (str): Where to save output
 		kit (str): Which kit was used
+		chemistry (str): Which chemistry was used
 		verbosity (int): How much output to show
 			0: none
 			1: only QC statistics
@@ -160,7 +162,8 @@ def process_bcs(fnames, oprefix, kit, t,
 	"""
 	_, counts, count_thresh = get_perfect_bc_counts(fnames, kit, verbose=verbosity)
 
-	fname = correct_barcodes(fnames, oprefix, kit,
+	fname = correct_barcodes(fnames, oprefix,
+						 kit, chemistry,
 						 counts, count_thresh,
 						 bc_edit_dist=3,
 						 t=t,
@@ -214,7 +217,9 @@ def get_args():
 	parser_all.add_argument('-o', dest='oprefix',
 		help='Output file path/prefix')
 	parser_all.add_argument('-k', dest='kit',
-		help='Kit used, {WT, WT_mini, WT_mega}')
+		help='Kit used, {WT, WT_mini, WT_mega}'),
+	parser_all.add_argument('-c', dest='chemistry', default='v1',
+		help='Chemistry used, {v1, v2}'),
 	parser_all.add_argument('-t', dest='threads',
 		help='Number of threads to run on (multithreading is recommended)')
 	parser_all.add_argument('--l1_mm', dest='l1_mm', default=3,
@@ -261,6 +266,8 @@ def get_args():
 		help='Output file path/prefix')
 	parser_find_bcs.add_argument('-k', dest='kit',
 		help='Kit used, {custom_1, WT, WT_mini, WT_mega}', default='WT')
+	parser_find_bcs.add_argument('-c', dest='chemistry', default='v1',
+		help='Chemistry used, {v1, v2}')
 	parser_find_bcs.add_argument('-t', dest='threads',
 		help='Number of threads to run on (multithreading is recommended)')
 	parser_find_bcs.add_argument('--l1_mm', dest='l1_mm', default=3,
@@ -288,6 +295,8 @@ def get_args():
 		help='Output file path/prefix')
 	parser_process_bcs.add_argument('-k', dest='kit',
 		help='Kit used, {custom_1, WT, WT_mini, WT_mega}')
+	parser_process_bcs.add_argument('-c', dest='chemistry', default='v1',
+		help='Chemistry used, {v1, v2}')
 	parser_process_bcs.add_argument('-t', dest='threads',
 		help='Number of threads to run on (multithreading is recommended)')
 	parser_process_bcs.add_argument('--chunksize', dest='chunksize', default=10**5,
@@ -325,6 +334,7 @@ def main():
 	if mode == 'all' or mode == 'find_bcs' or mode == 'score_linkers':
 		fastq = args.fastq
 		kit = args.kit
+		chemistry = args.chemistry
 		if args.max_dist:
 			max_dist = int(args.max_dist)
 		else:
@@ -349,12 +359,14 @@ def main():
 							  	  delete_input)
 
 		if mode == 'all':
-			fname = process_bcs(fname, oprefix, kit, t,
+			fname = process_bcs(fname, oprefix,
+										 kit, chemistry, t,
 										 chunksize, v,
 										 delete_input)
 
 	elif mode == 'process_bcs':
-		fname = process_bcs(fnames, oprefix, kit, t,
+		fname = process_bcs(fnames, oprefix,
+									 kit, chemistry, t,
 									 chunksize, v,
 									 delete_input)
 

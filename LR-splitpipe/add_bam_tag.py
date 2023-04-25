@@ -10,6 +10,8 @@ def get_args():
 		help='SAM file with Split-seq barcode+UMI information in the read name')
 	parser.add_argument('-k', dest='kit',
 		help='Kit used {WT, WT_mini, WT_mega}')
+	parser_find_bcs.add_argument('-c', dest='chemistry', default='v1',
+		help='Chemistry used, {v1, v2}')
 	parser.add_argument('--merge_primers', dest='merge_primers',
 		default=False, action='store_true',
 		help='Merge reads that come from the same cell from different priming strategies')
@@ -22,10 +24,10 @@ def get_args():
 	args = parser.parse_args()
 	return args
 
-def get_bc1_matches(kit):
+def get_bc1_matches(kit, chemistry):
     pkg_path = os.path.dirname(os.path.dirname(__file__))
     # pkg_path = '/'.join(pkg_path.split('/')[:-1])
-    bc_round_set = get_bc_round_set('WT')
+    bc_round_set = get_bc_round_set(kit, chemistry)
 
     # determine file to use
     for entry in bc_round_set:
@@ -64,13 +66,14 @@ def main():
 	args = get_args()
 	samfile = args.samfile
 	kit = args.kit
+	chemistry = args.chemistry
 	oprefix = args.oprefix
 	suff = args.suff
 
 	merge_primers = args.merge_primers
 
 	if merge_primers:
-		bc_df = get_bc1_matches(kit)
+		bc_df = get_bc1_matches(kit, chemistry)
 		fname = '{}_merged_primers.sam'.format(oprefix)
 		print(bc_df.head())
 	else:

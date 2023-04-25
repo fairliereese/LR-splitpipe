@@ -160,7 +160,9 @@ def process_bcs(fnames, oprefix,
 		delete_input (bool): Whether or not to delete input file
 			after execution
 	"""
-	_, counts, count_thresh = get_perfect_bc_counts(fnames, kit, verbose=verbosity)
+	_, counts, count_thresh = get_perfect_bc_counts(fnames, kit,
+													chemistry,
+													verbose=verbosity)
 
 	fname = correct_barcodes(fnames, oprefix,
 						 kit, chemistry,

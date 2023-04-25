@@ -79,14 +79,14 @@ def load_barcodes(kit, chemistry):
 	return edit_dict_set
 
 # From the Parse biosciences pipeline
-def load_barcodes_set(kit):
+def load_barcodes_set(kit, chemistry):
 	"""
 	Load the barcodes. Adapted from the Parse biosciences pipeline.
 	"""
 	pkg_path = os.path.dirname(__file__)
 	pkg_path = '/'.join(pkg_path.split('/')[:-1])
 
-	bc_round_set = get_bc_round_set(kit)
+	bc_round_set = get_bc_round_set(kit, chemistry)
 
 	bc_set = {}
 	for entry in bc_round_set:
@@ -605,7 +605,7 @@ def get_bcs_umis(fname, oprefix, t=1,
 
 	return ofile
 
-def get_perfect_bc_counts(fnames, kit, verbose=1):
+def get_perfect_bc_counts(fnames, kit, chemistry, verbose=1):
 	"""
 	Count how many reads with valid barcodes within edit
 	distance 3 there are. Adapted from Parse biosciences.
@@ -613,6 +613,7 @@ def get_perfect_bc_counts(fnames, kit, verbose=1):
 	Parameters:
 		fnames (list of str): Files to process
 		kit (str): {'WT', 'WT_mega', 'WT_mini'}
+		chemistry (str): {'v1', 'v2'}
 		verbose (int): How much output to show
 			0: none
 			1: only QC statistics
@@ -629,7 +630,7 @@ def get_perfect_bc_counts(fnames, kit, verbose=1):
 	reads_in_cells_thresh = 0.92
 
 	# bc_8nt_bc3, bc_8nt_bc2, bc_8nt_bc1 = load_barcodes_set(0
-	bc_set = load_barcodes_set(kit)
+	bc_set = load_barcodes_set(kit, chemistry)
 	bc_8nt_bc1 = bc_set['bc1']
 	bc_8nt_bc2 = bc_set['bc2']
 	bc_8nt_bc3 = bc_set['bc3']

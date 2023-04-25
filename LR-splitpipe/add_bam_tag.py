@@ -10,7 +10,7 @@ def get_args():
 		help='SAM file with Split-seq barcode+UMI information in the read name')
 	parser.add_argument('-k', dest='kit',
 		help='Kit used {WT, WT_mini, WT_mega}')
-	parser_find_bcs.add_argument('-c', dest='chemistry', default='v1',
+	parser.add_argument('-c', dest='chemistry', default='v1',
 		help='Chemistry used, {v1, v2}')
 	parser.add_argument('--merge_primers', dest='merge_primers',
 		default=False, action='store_true',

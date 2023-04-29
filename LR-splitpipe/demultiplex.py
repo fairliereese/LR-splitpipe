@@ -350,6 +350,8 @@ def main():
 			l1_mm = int(args.l1_mm)
 			l2_mm = int(args.l2_mm)
 	elif mode == 'process_bcs':
+		kit = args.kit
+		chemistry = args.chemistry
 		fnames = args.fnames
 		fnames = fnames.split(',')
 

@@ -1,6 +1,7 @@
 import pandas as pd
 import argparse
 import os
+import pysam
 from utils import *
 
 def get_args():
@@ -15,11 +16,13 @@ def get_args():
 	parser.add_argument('--merge_primers', dest='merge_primers',
 		default=False, action='store_true',
 		help='Merge reads that come from the same cell from different priming strategies')
-	parser.min_umi('--min_umi', dest='min_umi',
-		default=None),
+	parser.add_argument('--min_umi', dest='min_umi',
+		default=0, help='Minimum number of UMIs/cell to retain reads')
 	parser.add_argument('--suffix', dest='suff', default=None,
 		help='Suffix to add to cell barcodes. Useful if merging separate LR-Split-seq experiments '+
 		'that might have overlapping barcodes otherwise.')
+	parser.add_argument('-t', dest='threads',
+		help='Number of threads to run on.', default=1)
 	parser.add_argument('-o', dest='oprefix',
 		help='Output file path/prefix')
 
@@ -50,19 +53,31 @@ def get_bc1_matches(kit, chemistry):
 
     return bc_df
 
-def get_read_info(line):
-	''' From a line in a sam file, returns the read name,
-	    barcode, and UMI as formatted by demultiplex.py
-	'''
-	read_bc = line[0] # sam line
-	read_bc = read_bc.split(':')
-	read_name = read_bc[0]
-	bc_umi = read_bc[1]
-	bc_umi = bc_umi.split('_')
-	bc = ''.join(bc_umi[0:-1][::-1])
-	umi =  bc_umi[-1]
-
-	return read_name, bc, umi
+	# def get_read_info(raw_read_name, merge_primers, bc_df, suff):
+	# 	''' From a line in a sam file, returns the read name,
+	# 	    barcode, and UMI as formatted by demultiplex.py
+	# 		Merge primers if requested. Add suffix as requested.
+	# 	'''
+	# 	read_bc = raw_read_name.split(':')
+	# 	read_name = read_bc[0]
+	# 	bc_umi = read_bc[1]
+	# 	bc_umi = bc_umi.split('_')
+	# 	bc = ''.join(bc_umi[0:-1][::-1])
+	# 	umi =  bc_umi[-1]
+	#
+	# 	# replace bc with merged bc if necessary
+	# 	if merge_primers:
+	# 		bc3 = bc[:8]
+	# 		bc2 = bc[8:16]
+	# 		bc1 = bc[16:]
+	# 		if bc1 in bc_df.bc1_randhex.tolist():
+	# 			bc1 = bc_df.loc[bc_df.bc1_randhex==bc1, 'bc1_dt'].values[0]
+	# 			bc = bc3+bc2+bc1
+	#
+	# 	if suff:
+	# 		bc = '{}-{}'.format(bc, suff)
+	#
+	# 	return raw_read_name, read_name, bc, umi
 
 def main():
 	args = get_args()
@@ -73,44 +88,69 @@ def main():
 	suff = args.suff
 
 	merge_primers = args.merge_primers
+	min_umi = int(args.min_umi)
+	threads = int(args.threads)
 
 	if merge_primers:
-		bc_df = get_bc1_matches(kit, chemistry)
 		fname = '{}_merged_primers.sam'.format(oprefix)
-		print(bc_df.head())
 	else:
 		fname = '{}.sam'.format(oprefix)
 
-	ofile = open(fname, 'w')
-	ifile = open(samfile, 'r')
+	bc_df = get_bc1_matches(kit, chemistry)
 
-	for line in ifile:
-		if line.startswith('@'):
-			ofile.write(line)
-		else:
-			line = line.strip().split('\t')
-			read_name, bc, umi = get_read_info(line)
+	# get the updated info for each read in the sam file
+	ifile = pysam.AlignmentFile(samfile, 'r', threads=threads)
+	read_names = []
+	for s in ifile:
+	    read_names.append(s.query_name)
+	df = pd.DataFrame(data=read_names, columns=['raw_read_name'])
+	df[['read_name', 'bc_umi']] = df['raw_read_name'].str.split(':', expand=True)
+	df[['bc1', 'bc2', 'bc3', 'umi']] = df['bc_umi'].str.split('_', n=3, expand=True)
+	df['bc'] = df['bc3']+df['bc2']+df['bc1']
 
-			# replace bc with merged bc if necessary
-			if merge_primers:
-				bc3 = bc[:8]
-				bc2 = bc[8:16]
-				bc1 = bc[16:]
-				if bc1 in bc_df.bc1_randhex.tolist():
-					bc1 = bc_df.loc[bc_df.bc1_randhex==bc1, 'bc1_dt'].values[0]
-					bc = bc3+bc2+bc1
+	# get merged versions of bcs
+	if merge_primers:
+	    df = df.merge(bc_df, how='left', left_on='bc1', right_on='bc1_randhex')
+	    rand_inds = df.loc[~df.bc1_randhex.isnull()].index
+	    df.loc[rand_inds, 'bc1_merge'] = df.loc[rand_inds, 'bc1_dt']
+	    dt_inds = df.loc[df.bc1_randhex.isnull()].index
+	    df.loc[dt_inds, 'bc1_merge'] = df.loc[dt_inds, 'bc1']
+	    df['bc'] = df.bc3+df.bc2+df.bc1_merge
 
-			line[0] = read_name
+	# add suffix
+	if suff:
+	    df['bc'] = df.bc+'-'+suff
 
-			if suff:
-				bc = '{}-{}'.format(bc, suff)
+	# if we're imposing min. umi / cell or nuc figure that out
+	if min_umi != 0:
+		df2 = df[['bc', 'umi']].groupby('bc').nunique().reset_index().rename({'umi':'n_umi'}, axis=1)
+		df2 = df2.loc[df2.n_umi >= min_umi]
+		read_info = df.loc[df.bc.isin(df2.bc.tolist())]
+		print(f'{len(read_info.index)} reads that belong to cells w/ >= {min_umi} umi')
+	else:
+		read_info = df
 
-			cell_tag = 'CB:Z:{}'.format(bc)
-			umi_tag = 'MI:Z:{}'.format(umi)
-			line.append(cell_tag)
-			line.append(umi_tag)
-			line = '\t'.join(line)+'\n'
-			ofile.write(line)
+	# table of updated read name etc
+	read_info = read_info[['raw_read_name', 'read_name', 'bc', 'umi']]
+	ifile.close()
+
+	# now loop through reads again and replace / add info as needed
+	ifile = pysam.AlignmentFile(samfile, 'r', threads=threads)
+	ofile = pysam.AlignmentFile(fname, 'w', threads=threads, template=ifile)
+
+	for s in ifile:
+		read_name = s.query_name
+		if read_name not in read_info.raw_read_name.tolist():
+			continue
+		temp = read_info.loc[read_info.raw_read_name==read_name]
+		bc = temp.bc
+		umi = temp.umi
+
+		s.set_tag('CB', bc, 'Z')
+		s.set_tag('MI', umi, 'Z')
+
+		ofile.write(s)
+
 	ofile.close()
 	ifile.close()
 

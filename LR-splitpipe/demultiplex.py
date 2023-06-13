@@ -62,7 +62,8 @@ def score(fastq, oprefix, t,
 
 def find_bcs(fastq, oprefix, t,
 					  l1_mm, l2_mm,
-					  max_dist, max_len,
+					  max_dist,
+					  max_len, min_len,
 					  chunksize, verbosity,
 					  delete_input):
 	"""
@@ -83,6 +84,7 @@ def find_bcs(fastq, oprefix, t,
 		l2_m (int): Number of allowable mismatches in linker 2
 		max_dist (int): Max. distance that a linker can be from the end of the read
 		max_len (int): Max. length of a read to be considered
+		min_len (int): Min. length of a read to be considered
 		l1_p (float): Proportion of allowable mismatches in linker 1
 		l2_p (float): Proportion of allowable mismatches in linker 2
 		keep_dupes (bool):
@@ -112,7 +114,9 @@ def find_bcs(fastq, oprefix, t,
 
 	fname = align_linkers(fname, oprefix,
 					l1_m=l1_mm, l2_m=l2_mm,
-					max_dist=max_dist, max_len=max_len,
+					max_dist=max_dist,
+					max_len=max_len,
+					min_len=min_len,
 					t=t,
 					verbose=verbosity,
 					chunksize=chunksize,
@@ -233,6 +237,7 @@ def get_args():
 	parser_all.add_argument('--max_linker_dist', dest='max_dist', default=None,
 		help='Maximum distance that a linker can be from the end of a read')
 	parser_all.add_argument('--max_read_len', dest='max_len', default=None)
+	parser_all.add_argument('--min_read_len', dest='min_len', default=None)
 	parser_all.add_argument('--verbosity', dest='verbosity', default=1,
 		help="""Verbosity setting.
 			    0: No output
@@ -281,6 +286,7 @@ def get_args():
 	parser_find_bcs.add_argument('--max_linker_dist', dest='max_dist', default=None,
 		help='Maximum distance that a linker can be from the end of a read')
 	parser_find_bcs.add_argument('--max_read_len', dest='max_len', default=None)
+	parser_find_bcs.add_argument('--min_read_len', dest='min_len', default=None)
 	parser_find_bcs.add_argument('--verbosity', dest='verbosity', default=1,
 		help='Verbosity setting. Higher number = more messages')
 	parser_find_bcs.add_argument('--delete_input', dest='delete_input',
@@ -345,6 +351,10 @@ def main():
 			max_len = int(args.max_len)
 		else:
 			max_len = None
+		if args.min_len:
+			min_len = int(args.min_len)
+		else:
+			min_len = None
 
 		if mode == 'all' or mode == 'find_bcs':
 			l1_mm = int(args.l1_mm)
@@ -358,7 +368,8 @@ def main():
 	if mode == 'all' or mode == 'find_bcs':
 		fname = find_bcs(fastq, oprefix, t,
 								  l1_mm, l2_mm,
-								  max_dist, max_len,
+								  max_dist,
+								  max_len, min_len,
 								  chunksize, v,
 							  	  delete_input)
 

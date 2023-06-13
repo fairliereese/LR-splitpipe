@@ -15,6 +15,8 @@ def get_args():
 	parser.add_argument('--merge_primers', dest='merge_primers',
 		default=False, action='store_true',
 		help='Merge reads that come from the same cell from different priming strategies')
+	parser.min_umi('--min_umi', dest='min_umi',
+		default=None),
 	parser.add_argument('--suffix', dest='suff', default=None,
 		help='Suffix to add to cell barcodes. Useful if merging separate LR-Split-seq experiments '+
 		'that might have overlapping barcodes otherwise.')

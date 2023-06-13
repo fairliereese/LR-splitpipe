@@ -357,7 +357,9 @@ def align_linkers(fname, oprefix,
 						  t=1, chunksize=10**5,
 						  l1_m=None, l2_m=None,
 						  l1_p=None, l2_p=None,
-						  max_dist=200, max_len=10000,
+						  max_dist=200,
+						  max_len=10000,
+						  min_len=300,
 						  keep_dupes=False, verbose=1,
 						  delete_input=False):
 	"""
@@ -377,7 +379,9 @@ def align_linkers(fname, oprefix,
 		l2_p (float): Proportion of allowable mismatches in linker 2
 		max_dist (int): Max. distance that a linker can be from the end of the read
 		max_len (int): Max. length of a read to be considered
-		keep_dupes (bool):
+		min_len (int): Min. length of a read to be considered
+		keep_dupes (bool): Whether to keep reads that had good enough linkers
+			aligned in both direction
 		chunksize (int): Number of lines to process at a time
 		delete_input (bool): Whether or not to delete input file
 			after execution
@@ -415,10 +419,16 @@ def align_linkers(fname, oprefix,
 
 		# enforce max read length
 		if max_len:
-			df = df.loc[df.read_len < max_len]
+			df = df.loc[df.read_len <= max_len]
 			if verbose == 2:
 
-				print('Found {} reads < {}bp long'.format(len(df.index), max_len))
+				print('Found {} reads <= {}bp long'.format(len(df.index), max_len))
+
+		# enforce min read length
+		if min_len:
+			df = df.loc[df.read_len >= min_len]
+			if verbose == 2:
+				print('Found {} reads >= {}bp long'.format(len(df.index), min_len))
 
 		# init some dfs
 		fwd_df = pd.DataFrame()

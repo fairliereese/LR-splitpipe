@@ -143,8 +143,8 @@ def main():
 		if read_name not in read_info.raw_read_name.tolist():
 			continue
 		temp = read_info.loc[read_info.raw_read_name==read_name]
-		bc = temp.bc
-		umi = temp.umi
+		bc = temp.bc.values[0]
+		umi = temp.umi.values[0]
 
 		s.set_tag('CB', bc, 'Z')
 		s.set_tag('MI', umi, 'Z')

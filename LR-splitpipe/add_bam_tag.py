@@ -1,7 +1,6 @@
 import pandas as pd
 import argparse
 import os
-import pysam
 from utils import *
 
 def get_args():
@@ -99,10 +98,13 @@ def main():
 	bc_df = get_bc1_matches(kit, chemistry)
 
 	# get the updated info for each read in the sam file
-	ifile = pysam.AlignmentFile(samfile, 'r', threads=threads)
+	ifile = open(samfile, 'r')
 	read_names = []
-	for s in ifile:
-	    read_names.append(s.query_name)
+	for line in ifile:
+		if line.startswith('@'):
+			continue
+		read_names.append(line.split('\t')[0])
+
 	df = pd.DataFrame(data=read_names, columns=['raw_read_name'])
 	df[['read_name', 'bc_umi']] = df['raw_read_name'].str.split(':', expand=True)
 	df[['bc1', 'bc2', 'bc3', 'umi']] = df['bc_umi'].str.split('_', n=3, expand=True)
@@ -125,31 +127,58 @@ def main():
 	if min_umi != 0:
 		df2 = df[['bc', 'umi']].groupby('bc').nunique().reset_index().rename({'umi':'n_umi'}, axis=1)
 		df2 = df2.loc[df2.n_umi >= min_umi]
-		read_info = df.loc[df.bc.isin(df2.bc.tolist())]
-		print(f'{len(read_info.index)} reads that belong to cells w/ >= {min_umi} umi')
+		# read_info = df.loc[df.bc.isin(df2.bc.tolist())]
+		df['pass'] = df.bc.isin(df2.bc.tolist())
+		n_pass = len(df.loc[df['pass']==True].index)
+		print(f'{n_pass} reads that belong to cells w/ >= {min_umi} umi')
 	else:
-		read_info = df
+		df['pass'] = True
+	# else:
+	# 	read_info = df
 
 	# table of updated read name etc
-	read_info = read_info[['raw_read_name', 'read_name', 'bc', 'umi']]
+	df = df[['raw_read_name', 'read_name', 'bc', 'umi', 'pass']]
 	ifile.close()
 
 	# now loop through reads again and replace / add info as needed
-	ifile = pysam.AlignmentFile(samfile, 'r', threads=threads)
-	ofile = pysam.AlignmentFile(fname, 'w', threads=threads, template=ifile)
+	# ifile = pysam.AlignmentFile(samfile, 'r', threads=threads)
+	# ofile = pysam.AlignmentFile(fname, 'w', threads=threads, template=ifile)
+	ifile = open(samfile, 'r')
+	ofile = open(fname, 'w')
 
-	for s in ifile:
-		read_name = s.query_name
-		if read_name not in read_info.raw_read_name.tolist():
-			continue
-		temp = read_info.loc[read_info.raw_read_name==read_name]
-		bc = temp.bc.values[0]
-		umi = temp.umi.values[0]
+	df_ind = 0
+	for line in ifile:
+		if line.startswith('@'):
+			ofile.write(line)
+		else:
 
-		s.set_tag('CB', bc, 'Z')
-		s.set_tag('MI', umi, 'Z')
+			# df contains one entry for each read, read_info contains only
+			# the reads we want to output
+			read_name = line.split('\t')[0]
+			temp = df.iloc[df_ind]
 
-		ofile.write(s)
+			if temp['pass'] == True:
+
+				raw_read_name = temp.raw_read_name
+				assert read_name == raw_read_name
+
+				new_read_name = temp.read_name
+				bc = temp.bc
+				umi = temp.umi
+
+				# make new sam line
+				line = line.strip().split('\t')
+				line[0] = new_read_name
+				cell_tag = 'CB:Z:{}'.format(bc)
+				umi_tag = 'MI:Z:{}'.format(umi)
+				line.append(cell_tag)
+				line.append(umi_tag)
+
+				# write out
+				line = '\t'.join(line)+'\n'
+				ofile.write(line)
+
+			df_ind += 1
 
 	ofile.close()
 	ifile.close()

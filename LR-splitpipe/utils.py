@@ -40,7 +40,7 @@ def load_bc_dict(fname, verb=False):
 	return new_dict
 
 def get_bc_round_set(kit, chemistry):
-	KIT_INT_DICT = {'custom_1': 1, 'WT': 48, 'WT_mini': 28, 'WT_mega': 96}
+	KIT_INT_DICT = {'custom_1': 1, 'WT': 48, 'WT_mini': 12, 'WT_mega': 96}
 	kit_n = KIT_INT_DICT[kit]
 	if kit_n == 12:
 		bc_round_set = [['bc1','n24_v4'], ['bc2','v1'], ['bc3','v1']]

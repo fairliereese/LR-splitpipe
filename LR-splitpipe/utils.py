@@ -872,7 +872,7 @@ def flip_reads(fname, oprefix, t=1,
 		if t == 1:
 			df['trim_seq'] = df.apply(flip_reads_x, axis=1)
 		else:
-			pandarallel.initialize(nb_workers=t, verbose=1)
+			pandarallel.initialize(nb_workers=t, verbose=1, use_memory_fs=False)
 			df['trim_seq'] = df.parallel_apply(flip_reads_x, axis=1)
 
 		df.seq = df.trim_seq

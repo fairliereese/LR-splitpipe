@@ -102,19 +102,35 @@ def load_barcodes_set(kit, chemistry):
 def rev_comp(s):
 	"""
 	Compute the reverse complement of a given sequence
+	Noncanonical base pairings determined by: https://arep.med.harvard.edu/labgc/adnan/projects/Utilities/revcomp.html
 
 	Parameters:
 		s (str): Input sequence
 	Returns:
 		rev_comp (str): Reverse complement of input sequence
 	"""
-	rc_map = {'A': 'T', 'T': 'A', 'G': 'C', 'C': 'G',
-			'a': 't', 't': 'a', 'g': 'c', 'c': 'g',
-			'n': 'n', '*': '*'}
-	rev_comp = [rc_map[i] for i in s]
-	rev_comp.reverse()
-	rev_comp = ''.join(rev_comp)
-	return rev_comp
+	rc_map = {'A': 'T',
+			  'T': 'A',
+			  'U': 'A',
+			  'G': 'C',
+			  'C': 'G',
+			  'Y': 'R',
+			  'R': 'Y',
+			  'S': 'S',
+			  'W': 'W',
+			  'K': 'M',
+			  'M': 'K',
+			  'B': 'V',
+			  'D': 'H',
+			  'H': 'D',
+			  'V': 'B',
+			  'N': 'N',
+			  '*': '*'}
+	rc = [rc_map[i.upper()] for i in s]
+	rc.reverse()
+	rc = ''.join(rc)
+	return rc
+
 
 def get_linkers():
 	"""

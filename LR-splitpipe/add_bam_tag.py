@@ -106,7 +106,8 @@ def main():
 		read_names.append(line.split('\t')[0])
 
 	df = pd.DataFrame(data=read_names, columns=['raw_read_name'])
-	df[['read_name', 'bc_umi']] = df['raw_read_name'].str.split(':', expand=True)
+	# df[['read_name', 'bc_umi']] = df['raw_read_name'].str.split(':', expand=True)
+	df[['read_name', 'bc_umi']] = df['raw_read_name'].str.rsplit(':', n=1, expand=True)
 	df[['bc1', 'bc2', 'bc3', 'umi']] = df['bc_umi'].str.split('_', n=3, expand=True)
 	df['bc'] = df['bc3']+df['bc2']+df['bc1']
 

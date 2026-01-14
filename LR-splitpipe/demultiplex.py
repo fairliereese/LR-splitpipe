@@ -329,7 +329,7 @@ def main():
 	delete_input = args.delete_input
 
 	def format_chunksize(c):
-		if '**' in c:
+		if isinstance(c, str) and '**' in c:
 			i, j = c.split('**')
 			i = float(i)
 			j = float(j)

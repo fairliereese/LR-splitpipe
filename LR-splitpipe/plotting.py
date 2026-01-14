@@ -131,6 +131,7 @@ def plot_knee_plot(df, oprefix, kind):
 			linewidth=2)
 	ax = plt.gca()
 	ax.set_xscale('log')
+	ax.set_yscale('log')
 	ax.set_xlabel('Ranked cells by # UMIs')
 	ax.set_ylabel('# UMIs (logscale)')
 	ax.set_title(kind)
